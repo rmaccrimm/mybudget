@@ -1,0 +1,9 @@
+[submodule "server"]
+	path = server
+	url = ../mybudget-server.git
+[submodule "app"]
+	path = app
+	url = ../mybudget-app.git
+[submodule "testsuite"]
+	path = testsuite
+	url = ../mybudget-testsuite.git

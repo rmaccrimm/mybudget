@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/@ROOT@/**)",
+      "Edit(/@ROOT@/testsuite/**)"
+    ],
+    "deny": [
+      "Edit(/@ROOT@/testsuite/.git)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "allowWrite": ["@CACHE@/tester/target", "@CACHE@/tester/cargo-home"]
+    },
+    "network": {
+      "allowedDomains": ["crates.io", "index.crates.io", "static.crates.io"],
+      "allowLocalBinding": true
+    }
+  }
+}

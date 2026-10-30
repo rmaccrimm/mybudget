@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/@ROOT@/**)",
+      "Edit(/@ROOT@/server/**)"
+    ],
+    "deny": [
+      "Edit(/@ROOT@/server/.git)",
+      "Read(/@ROOT@/testsuite/hidden/**)",
+      "Read(/@ROOT@/target/**)",
+      "Read(/@ROOT@/.git/modules/testsuite/**)",
+      "Read(/@CACHE@/tester/**)",
+      "Read(/@CACHE@/judge/**)",
+      "Read(~/.claude/projects/**)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "allowWrite": ["@CACHE@/implementer/target", "@CACHE@/implementer/cargo-home"]
+    },
+    "network": {
+      "allowedDomains": ["crates.io", "index.crates.io", "static.crates.io"],
+      "allowLocalBinding": true
+    }
+  }
+}
