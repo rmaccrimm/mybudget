@@ -36,7 +36,7 @@ GET /no-such-path
 
 3.1 Request and response bodies are JSON (UTF-8), except the body of `GET /health`'s `200` response. A response with a JSON body has the header `Content-Type: application/json`. Every `POST` and `PATCH` takes a JSON object as its body, and clients send it with `Content-Type: application/json`; a missing or empty body isn't valid JSON (3.4). Every string in a body must be Unicode text, so one with an escaped lone surrogate, such as `"a\ud800b"`, makes the body invalid JSON too.
 
-3.2 Every `400`, `404`, `405`, `409` and `413` response, including the `404` in 2.2, has a JSON body whose `error` field is a non-empty string. Its wording isn't specified: the messages in examples are only illustrations.
+3.2 Every `400`, `404`, `405`, `409` and `413` response, including the `404` in 2.2, has a JSON body whose `error` field is a non-empty string. Its wording isn't specified: the messages in examples are only illustrations. A response to `HEAD` never has a body, as HTTP requires.
 
 ```
 GET /no-such-path
@@ -50,10 +50,10 @@ GET /no-such-path
 
 - `400`: the request is wrong in itself. Its body isn't valid JSON or isn't a JSON object, a required field is missing, a field has the wrong JSON type or a value this spec doesn't allow, a body field refers to something that doesn't exist, or it asks for something this spec never allows (such as renaming a transfer payee).
 - `404`: the path names something that doesn't exist.
-- `405`: the path is one this spec defines, but not for that method.
+- `405`: the path is one this spec defines, but not for that method. `HEAD` is defined wherever `GET` is, and gets the `GET` response without its body.
 - `409`: the request is valid but conflicts with the current data, such as a name that's taken or deleting something still in use.
 
-When more than one applies, the first of `405`, `404`, `400`, `409` wins.
+When more than one applies, the first of `405`, `404`, `400`, `409` wins. What the server does with a request that isn't valid HTTP, such as one with `Content-Length: abc`, isn't specified.
 
 3.5 Ids are strings that the server generates, made only of ASCII letters, digits, `-` and `_`, so they go into paths as they are. Clients never percent-encode a path, and what the server does with one that is percent-encoded isn't specified. An id is unique across the server and is never reused, even after the thing it named is deleted. Examples show ids as capitalised placeholders such as `"PLAN_ID"`; within one example, the same placeholder is the same id.
 
