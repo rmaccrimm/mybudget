@@ -34,7 +34,7 @@ GET /no-such-path
 
 ## 3. Conventions
 
-3.1 Request and response bodies are JSON (UTF-8), except the body of `GET /health`'s `200` response. A response with a JSON body has the header `Content-Type: application/json`. Every `POST` and `PATCH` takes a JSON object as its body, and clients send it with `Content-Type: application/json`; a missing or empty body isn't valid JSON (3.4).
+3.1 Request and response bodies are JSON (UTF-8), except the body of `GET /health`'s `200` response. A response with a JSON body has the header `Content-Type: application/json`. Every `POST` and `PATCH` takes a JSON object as its body, and clients send it with `Content-Type: application/json`; a missing or empty body isn't valid JSON (3.4). Every string in a body must be Unicode text, so one with an escaped lone surrogate, such as `"a\ud800b"`, makes the body invalid JSON too.
 
 3.2 Every `400`, `404`, `405` and `409` response, including the `404` in 2.2, has a JSON body whose `error` field is a non-empty string. Its wording isn't specified: the messages in examples are only illustrations.
 
