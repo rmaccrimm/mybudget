@@ -49,6 +49,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | `2ac308f` | 3.5 | Ids use only ASCII letters, digits, `-` and `_`. Clients never percent-encode paths, so what the server does with a percent-encoded path is unspecified. |
 | `9911cc4` | 3.2, 3.4 | `HEAD` works wherever `GET` does, with no body. What the server does with malformed HTTP is unspecified. |
 | This file's commit | 5 to 7 | Changes made before the round, not rulings: `starting_date` is unused when `starting_balance` is 0; a `PATCH` with a different account `type` returns 400; a `PATCH` naming a category's own group doesn't move it; examples added for 5.6, 6.3, 6.4, 7.4 and 7.6. |
+| `6d0ec8f` | 3.6, 3.7, 5.2, 6.5 | A field the endpoint defines is checked whenever it's present, even when another field leaves it unused: `starting_date` (not nullable) when `starting_balance` is 0, and `payee_name` (a payee name or `null`) when `payee_id` is given. `-0` is an integer meaning 0. |
 
 ## The rounds
 
