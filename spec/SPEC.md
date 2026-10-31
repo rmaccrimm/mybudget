@@ -57,9 +57,9 @@ When more than one applies, the first of `405`, `404`, `400`, `409` wins. What t
 
 3.5 Ids are strings that the server generates, made only of ASCII letters, digits, `-` and `_`, so they go into paths as they are. Clients never percent-encode a path, and what the server does with one that is percent-encoded isn't specified. An id is unique across the server and is never reused, even after the thing it named is deleted. Examples show ids as capitalised placeholders such as `"PLAN_ID"`; within one example, the same placeholder is the same id.
 
-3.6 A response object has every field its examples show. A field with no value is `null`, never left out. Responses may carry fields this spec doesn't mention. Request fields an endpoint doesn't define are ignored, and so are query parameters it doesn't define.
+3.6 A response object has every field its examples show. A field with no value is `null`, never left out. Responses may carry fields this spec doesn't mention. Request fields an endpoint doesn't define are ignored, and so are query parameters it doesn't define. A request field the endpoint does define is checked whenever it's present, even when another field leaves its value unused: an invalid value returns 400.
 
-3.7 Amounts are integers in milliunits: 1000 milliunits is one unit of the plan's currency, so 12.34 is `12340` and -0.22 is `-220`. An amount in a request must be a JSON integer, written without a fraction or exponent, from -1000000000000 to 1000000000000; anything else returns 400.
+3.7 Amounts are integers in milliunits: 1000 milliunits is one unit of the plan's currency, so 12.34 is `12340` and -0.22 is `-220`. An amount in a request must be a JSON integer, written without a fraction or exponent, from -1000000000000 to 1000000000000; anything else returns 400. `-0` is such an integer, and means 0.
 
 3.8 A date is a string `YYYY-MM-DD` naming a real calendar date from `1900-01-01` to `2999-12-31`. A month is a string `YYYY-MM` from `1900-01` to `2999-12`. Anything else where a date or month is expected, in a body, a path or a query parameter, returns 400. A transaction belongs to the month of its date. Any date in range is accepted, including dates after today.
 
@@ -122,7 +122,7 @@ DELETE /plans/PLAN_ID
 
 Cash and credit accounts are on budget (`"on_budget": true`): their transactions feed the plan's categories and Ready to Assign. Tracking accounts only keep a balance (`"on_budget": false`). An account's type never changes.
 
-5.2 `POST /plans/{plan_id}/accounts` creates an account. `name` and `type` are required, and `note` is optional and nullable. `starting_balance` is an amount, default 0. `starting_date` is a date, required when `starting_balance` isn't 0 and unused when it is.
+5.2 `POST /plans/{plan_id}/accounts` creates an account. `name` and `type` are required, and `note` is optional and nullable. `starting_balance` is an amount, default 0. `starting_date` is a date, and isn't nullable. It is required when `starting_balance` isn't 0. When `starting_balance` is 0 it may be left out and is unused, but if present it must still be a date (3.6), so `null` or `"2026-02-30"` returns 400.
 
 ```
 POST /plans/PLAN_ID/accounts
@@ -219,7 +219,7 @@ DELETE /plans/PLAN_ID/payees/CORNER_SHOP_ID
 → 204
 ```
 
-6.5 Every request that takes `payee_id` also takes `payee_name`. When `payee_id` is absent or `null` and `payee_name` is a string, the payee is the one, not a transfer payee, whose name is exactly `payee_name`; it is created if there is none. When `payee_id` isn't `null`, `payee_name` is ignored. Transfer payees are never found by name.
+6.5 Every request that takes `payee_id` also takes `payee_name`, which is a payee name (3.9) or `null`. When `payee_id` is absent or `null` and `payee_name` is a string, the payee is the one, not a transfer payee, whose name is exactly `payee_name`; it is created if there is none. When `payee_id` isn't `null`, `payee_name` is unused, though it must still be valid (3.6). Transfer payees are never found by name.
 
 6.6 A transfer payee's name may be the same as any other payee's.
 
