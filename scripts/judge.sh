@@ -106,12 +106,16 @@ mv "$RES/vendor.config" .cargo/config.toml
 
 in_sandbox server-build 1 "$STEP_TIMEOUT" cargo build --locked --offline \
     --manifest-path server/Cargo.toml >"$RES/server-build.log" 2>&1 ||
-  finish 1 "server build: FAILED" "" "$(tail -n 40 "$RES/server-build.log")"
+  finish 1 "server build: FAILED" "" "$(grep -v '^ *Compiling ' "$RES/server-build.log" | tail -n 40)"
 
 problem="$(startup_problem)"
-[[ -z $problem ]] ||
-  finish 1 "server build: ok" "startup: FAILED" "$problem" "" \
-    "server stderr (last 20 lines):" "$(tail -n 20 "$RES/startup.log")"
+if [[ -n $problem ]]; then
+  summary=("server build: ok" "startup: FAILED" "$problem")
+  if [[ -s $RES/startup.log ]]; then
+    summary+=("" "server stderr (last 20 lines):" "$(tail -n 20 "$RES/startup.log")")
+  fi
+  finish 1 "${summary[@]}"
+fi
 
 in_sandbox tests/build 0 "$STEP_TIMEOUT" cargo test --locked --offline --no-run --tests \
     --message-format=json --manifest-path testsuite/Cargo.toml \
