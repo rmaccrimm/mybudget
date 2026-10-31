@@ -12,7 +12,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CACHE="${MYBUDGET_CACHE:-$HOME/.cache/mybudget}"
 RES="$CACHE/judge/results"
-MAX_FIXES="${MAX_FIXES:-3}"
+MAX_FIXES="${MAX_FIXES:-5}"
 MAX_ATTACKS="${MAX_ATTACKS:-2}"
 task="${1:?usage: $0 \"<task>\"}"
 
@@ -24,27 +24,20 @@ lane() {
   fi
 }
 
-# The implementer gets visible output and hidden counts only.
-implementer_feedback() {
-  echo "Judge results for the committed code:"
-  cat "$RES/summary.txt"
-  echo
-  echo "Visible test output (last 150 lines):"
-  tail -n 150 "$RES/visible.log"
-}
-
 lane tester "Write tests for: $task"
 for (( attack = 0; ; attack++ )); do
   fixes=0
   while true; do
     echo "== judge"
     if "$ROOT/scripts/judge.sh"; then break; else rc=$?; fi
-    (( rc == 1 )) || { echo "round.sh: judge error; see $RES" >&2; exit 2; }
+    (( rc == 1 )) || { echo "round.sh: the test suite or harness is broken; see $RES" >&2; exit 2; }
     (( fixes < MAX_FIXES )) || { echo "round.sh: still failing after $MAX_FIXES implementer runs" >&2; exit 1; }
     fixes=$(( fixes + 1 ))
+    # summary.txt is written to be safe for the implementer: failures by clause, no tests.
     lane implementer "Task: $task
 
-$(implementer_feedback)"
+Judge results for the committed code:
+$(cat "$RES/summary.txt")"
   done
   if (( attack > 0 && fixes == 0 )); then
     echo "round.sh: the tester's last attack found nothing new. Round complete."

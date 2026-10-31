@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
-# Build the server, then run the test suite against it.
-# Usage: scripts/test.sh [--hidden] [cargo test args...]
-#   --hidden  also run testsuite/hidden (the implementer can't read it, so this fails for them)
+# Build the server, then run the test suite against it. For the tester and for humans:
+# the implementer can't read testsuite/, so this fails for it.
+# Usage: scripts/test.sh [cargo test args...]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SUITE="$ROOT/testsuite/Cargo.toml"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
-
-hidden=0
-if [[ "${1:-}" == --hidden ]]; then hidden=1; shift; fi
+source "$ROOT/scripts/suite-rules.sh"
 
 cargo build --locked --manifest-path "$ROOT/server/Cargo.toml"
 export MYBUDGET_SERVER_BIN="$CARGO_TARGET_DIR/debug/mybudget-server"
 
-cargo test --locked --manifest-path "$ROOT/testsuite/Cargo.toml" "$@"
-if (( hidden )); then
-  cargo test --locked --manifest-path "$ROOT/testsuite/hidden/Cargo.toml" "$@"
+# The judge rejects the whole suite if any test breaks the naming rule, so check first.
+if [[ -n "$(find "$ROOT/testsuite/tests" -name '*.rs' 2>/dev/null)" ]]; then
+  problems="$(cargo test -q --locked --manifest-path "$SUITE" --test '*' -- --list --format terse |
+    sed -n 's/: test$//p' | naming_problems "$ROOT/spec/SPEC.md")"
+  if [[ -n $problems ]]; then
+    printf 'These tests break the naming rule (see scripts/suite-rules.sh):\n%s\n' "$problems" >&2
+    exit 1
+  fi
 fi
+
+cargo test --locked --manifest-path "$SUITE" "$@"

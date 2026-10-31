@@ -6,7 +6,7 @@
     ],
     "deny": [
       "Edit(/@ROOT@/server/.git)",
-      "Read(/@ROOT@/testsuite/hidden/**)",
+      "Read(/@ROOT@/testsuite/**)",
       "Read(/@ROOT@/target/**)",
       "Read(/@ROOT@/.git/modules/testsuite/**)",
       "Read(/@CACHE@/tester/**)",

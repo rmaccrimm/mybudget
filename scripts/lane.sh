@@ -2,7 +2,7 @@
 # Run one headless Claude session confined to a lane, check it stayed in its lane,
 # then commit its work.
 #   tester       works in testsuite/ and can't write anywhere else
-#   implementer  works in server/, can't write anywhere else, can't read the hidden tests
+#   implementer  works in server/, can't write anywhere else, can't read the tests
 # Enforcement comes from the role's settings (roles/<role>.json): the session starts in
 # the lane's directory with Claude Code's OS-level sandbox on, so Bash and everything it
 # runs can write only there.
