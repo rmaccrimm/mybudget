@@ -1,6 +1,6 @@
 # MyBudget server spec
 
-This is the contract between the tester and the implementer. Only humans edit it. When an agent raises a `QUESTION:` or `DISPUTE:`, settle it by changing this file.
+This is the contract between the tester and the implementer. When an agent raises a `QUESTION:` or `DISPUTE:`, settle it by changing this file.
 
 The scripts depend on two format rules:
 
