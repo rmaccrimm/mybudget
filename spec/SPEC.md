@@ -36,7 +36,7 @@ GET /no-such-path
 
 3.1 Request and response bodies are JSON (UTF-8), except the body of `GET /health`'s `200` response. A response with a JSON body has the header `Content-Type: application/json`. Every `POST` and `PATCH` takes a JSON object as its body, and clients send it with `Content-Type: application/json`; a missing or empty body isn't valid JSON (3.4). Every string in a body must be Unicode text, so one with an escaped lone surrogate, such as `"a\ud800b"`, makes the body invalid JSON too.
 
-3.2 Every `400`, `404`, `405` and `409` response, including the `404` in 2.2, has a JSON body whose `error` field is a non-empty string. Its wording isn't specified: the messages in examples are only illustrations.
+3.2 Every `400`, `404`, `405`, `409` and `413` response, including the `404` in 2.2, has a JSON body whose `error` field is a non-empty string. Its wording isn't specified: the messages in examples are only illustrations.
 
 ```
 GET /no-such-path
@@ -70,6 +70,8 @@ When more than one applies, the first of `405`, `404`, `400`, `409` wins.
 3.11 A request that returns an error changes nothing. Concurrent requests behave as if they were handled one at a time.
 
 3.12 A list endpoint returns a JSON array, in the order its clause gives.
+
+3.13 The server may refuse a body it can't reasonably handle, even when the trouble is in a field it would ignore. A body over 1 MiB (1048576 bytes) may get `413`, whatever else is wrong with the request. A body that nests arrays and objects more than 64 deep, or holds a number too large for a 64-bit float, may get `400`. Within those limits, a field the endpoint ignores may hold any JSON value.
 
 ## 4. Plans
 
