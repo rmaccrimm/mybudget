@@ -112,4 +112,176 @@ DELETE /plans/PLAN_ID
 
 4.5 Everything in sections 5 onward belongs to one plan and lives under `/plans/{plan_id}/`. A path naming something that belongs to another plan returns 404, and a body field referring to it returns 400, exactly as if it didn't exist.
 
-<!-- Next: accounts, payees and categories (sections 5 to 7). -->
+## 5. Accounts
+
+5.1 An account's `type` is one of:
+
+- cash accounts: `checking`, `savings`, `cash`
+- credit accounts: `creditCard`, `lineOfCredit`
+- tracking accounts: `otherAsset`, `otherLiability`
+
+Cash and credit accounts are on budget (`"on_budget": true`): their transactions feed the plan's categories and Ready to Assign. Tracking accounts only keep a balance (`"on_budget": false`). An account's type never changes.
+
+5.2 `POST /plans/{plan_id}/accounts` creates an account. `name` and `type` are required, and `note` is optional and nullable. `starting_balance` is an amount, default 0. `starting_date` is a date, required when `starting_balance` isn't 0 and unused when it is.
+
+```
+POST /plans/PLAN_ID/accounts
+{"name": "Checking", "type": "checking", "starting_balance": 2500000, "starting_date": "2026-10-01"}
+→ 201
+{"id": "CHECKING_ID", "name": "Checking", "type": "checking", "on_budget": true, "closed": false,
+ "note": null, "balance": 2500000, "cleared_balance": 2500000, "uncleared_balance": 0,
+ "transfer_payee_id": "CHECKING_PAYEE_ID", "payment_category_id": null}
+```
+
+5.3 A non-zero starting balance creates the account's first transaction. It is dated `starting_date`, has amount `starting_balance` and the payee named `Starting Balance` (found or created as in 6.5), memo `null`, `cleared` `"cleared"`, `approved` true and no flag. In an on-budget account its category is `ready_to_assign`; in a tracking account it has none. A zero starting balance creates no transaction.
+
+5.4 `balance` is the sum of the amounts of the account's transactions. `cleared_balance` is the sum over those whose `cleared` is `"cleared"` or `"reconciled"`, and `uncleared_balance` the sum over those that are `"uncleared"`. A split transaction counts once, with its own amount.
+
+5.5 Creating an account first creates its transfer payee (section 6), named `Transfer : ` followed by the account's name; `transfer_payee_id` is its id. Creating a credit account then creates its payment category (7.2); `payment_category_id` is its id, and `null` for other accounts. Only then is the starting balance transaction (5.3) created.
+
+```
+POST /plans/PLAN_ID/accounts
+{"name": "Visa", "type": "creditCard", "starting_balance": -350000, "starting_date": "2026-10-01"}
+→ 201
+{"id": "VISA_ID", "name": "Visa", "type": "creditCard", "on_budget": true, "closed": false,
+ "note": null, "balance": -350000, "cleared_balance": -350000, "uncleared_balance": 0,
+ "transfer_payee_id": "VISA_PAYEE_ID", "payment_category_id": "VISA_PAYMENT_ID"}
+```
+
+5.6 `GET /plans/{plan_id}/accounts` lists the plan's accounts, oldest first. `GET /plans/{plan_id}/accounts/{account_id}` returns one. For a plan whose only account is 5.2's Checking:
+
+```
+GET /plans/PLAN_ID/accounts
+→ 200
+[{"id": "CHECKING_ID", "name": "Checking", "type": "checking", "on_budget": true, "closed": false,
+  "note": null, "balance": 2500000, "cleared_balance": 2500000, "uncleared_balance": 0,
+  "transfer_payee_id": "CHECKING_PAYEE_ID", "payment_category_id": null}]
+```
+
+5.7 `PATCH /plans/{plan_id}/accounts/{account_id}` can change `name`, `note` and `closed`; a `type` other than the account's returns 400 (5.1). Renaming an account renames its transfer payee and its payment category to match.
+
+```
+PATCH /plans/PLAN_ID/accounts/VISA_ID
+{"name": "Visa Gold"}
+→ 200
+{"id": "VISA_ID", "name": "Visa Gold", "type": "creditCard", "on_budget": true, "closed": false,
+ "note": null, "balance": -350000, "cleared_balance": -350000, "uncleared_balance": 0,
+ "transfer_payee_id": "VISA_PAYEE_ID", "payment_category_id": "VISA_PAYMENT_ID"}
+```
+
+5.8 Setting `closed` to true on an open account returns 409 unless its `balance` is 0. A closed account still takes transactions, and can be reopened at any time.
+
+5.9 `DELETE /plans/{plan_id}/accounts/{account_id}` returns 409 if the account has any transactions; its starting balance counts. Otherwise it deletes the account, its transfer payee, and its payment category along with that category's assigned amounts.
+
+```
+DELETE /plans/PLAN_ID/accounts/VISA_ID
+→ 409
+{"error": "the account has transactions"}
+```
+
+## 6. Payees
+
+6.1 A payee has an `id`, a `name` and a `transfer_account_id`, which is an account's id for that account's transfer payee and `null` for any other payee. `GET /plans/{plan_id}/payees` lists all the plan's payees, transfer payees included, oldest first. `GET /plans/{plan_id}/payees/{payee_id}` returns one. For a plan whose only account is Checking, created with a starting balance:
+
+```
+GET /plans/PLAN_ID/payees
+→ 200
+[{"id": "CHECKING_PAYEE_ID", "name": "Transfer : Checking", "transfer_account_id": "CHECKING_ID"},
+ {"id": "STARTING_BALANCE_ID", "name": "Starting Balance", "transfer_account_id": null}]
+```
+
+6.2 `POST /plans/{plan_id}/payees` creates a payee from `name`. Payees that aren't transfer payees have unique names, compared exactly (case matters): a name one of them already has returns 409.
+
+```
+POST /plans/PLAN_ID/payees
+{"name": "Corner Shop"}
+→ 201
+{"id": "CORNER_SHOP_ID", "name": "Corner Shop", "transfer_account_id": null}
+```
+
+6.3 `PATCH /plans/{plan_id}/payees/{payee_id}` can change `name`, under the same rule; a payee keeping its own name isn't a conflict. A `PATCH` with `name` on a transfer payee returns 400, because its name follows its account (5.7).
+
+```
+PATCH /plans/PLAN_ID/payees/CORNER_SHOP_ID
+{"name": "Corner Shop Ltd"}
+→ 200
+{"id": "CORNER_SHOP_ID", "name": "Corner Shop Ltd", "transfer_account_id": null}
+```
+
+6.4 `DELETE /plans/{plan_id}/payees/{payee_id}` returns 400 for a transfer payee and 409 for a payee that any transaction uses. Otherwise it deletes the payee.
+
+```
+DELETE /plans/PLAN_ID/payees/CHECKING_PAYEE_ID
+→ 400
+{"error": "a transfer payee can't be deleted"}
+
+DELETE /plans/PLAN_ID/payees/CORNER_SHOP_ID
+→ 204
+```
+
+6.5 Every request that takes `payee_id` also takes `payee_name`. When `payee_id` is absent or `null` and `payee_name` is a string, the payee is the one, not a transfer payee, whose name is exactly `payee_name`; it is created if there is none. When `payee_id` isn't `null`, `payee_name` is ignored. Transfer payees are never found by name.
+
+6.6 A transfer payee's name may be the same as any other payee's.
+
+## 7. Categories
+
+7.1 `GET /plans/{plan_id}/categories` lists the plan's category groups, each with its categories. The first group is always the internal group `Credit Card Payments`. The plan's own groups follow, oldest first. Within a group, categories are in the order they joined it. For a plan with one credit account, Visa, and one group, Bills, holding Rent:
+
+```
+GET /plans/PLAN_ID/categories
+→ 200
+[{"id": "CCP_GROUP_ID", "name": "Credit Card Payments", "hidden": false, "internal": true,
+  "categories": [{"id": "VISA_PAYMENT_ID", "group_id": "CCP_GROUP_ID", "name": "Visa",
+                  "hidden": false, "note": null, "payment_account_id": "VISA_ID"}]},
+ {"id": "BILLS_ID", "name": "Bills", "hidden": false, "internal": false,
+  "categories": [{"id": "RENT_ID", "group_id": "BILLS_ID", "name": "Rent",
+                  "hidden": false, "note": null, "payment_account_id": null}]}]
+```
+
+7.2 Each credit account has one payment category, created with the account at the end of `Credit Card Payments`. Its name is always the account's name, and its `payment_account_id` is the account's id. Every other category is a user category, with `payment_account_id` `null`.
+
+7.3 `POST /plans/{plan_id}/category_groups` creates a group from `name`.
+
+```
+POST /plans/PLAN_ID/category_groups
+{"name": "Bills"}
+→ 201
+{"id": "BILLS_ID", "name": "Bills", "hidden": false, "internal": false, "categories": []}
+```
+
+7.4 `GET /plans/{plan_id}/category_groups/{group_id}` returns a group with its categories. `PATCH` on it can change `name` and `hidden`. `DELETE` on it deletes it, but returns 409 while it has categories. A `PATCH` with `name` or `hidden` on the internal group returns 400, and so does a `DELETE` of it.
+
+```
+PATCH /plans/PLAN_ID/category_groups/BILLS_ID
+{"hidden": true}
+→ 200
+{"id": "BILLS_ID", "name": "Bills", "hidden": true, "internal": false,
+ "categories": [{"id": "RENT_ID", "group_id": "BILLS_ID", "name": "Rent",
+                 "hidden": false, "note": null, "payment_account_id": null}]}
+```
+
+7.5 `POST /plans/{plan_id}/categories` creates a user category at the end of a group. `group_id` and `name` are required, and `note` is optional and nullable. A `group_id` that isn't one of the plan's own groups returns 400.
+
+```
+POST /plans/PLAN_ID/categories
+{"group_id": "BILLS_ID", "name": "Rent"}
+→ 201
+{"id": "RENT_ID", "group_id": "BILLS_ID", "name": "Rent", "hidden": false, "note": null,
+ "payment_account_id": null}
+```
+
+7.6 `GET /plans/{plan_id}/categories/{category_id}` returns a category. `PATCH` on it can change `name`, `note`, `hidden` and `group_id`. A `group_id` other than the category's own moves it to the end of that group, which must be one of the plan's own groups (400 otherwise). A `PATCH` on a payment category that includes `name` or `group_id` returns 400.
+
+```
+PATCH /plans/PLAN_ID/categories/RENT_ID
+{"group_id": "HOUSING_ID", "note": "due on the 1st"}
+→ 200
+{"id": "RENT_ID", "group_id": "HOUSING_ID", "name": "Rent", "hidden": false,
+ "note": "due on the 1st", "payment_account_id": null}
+```
+
+7.7 Inflow: Ready to Assign isn't a category object. A transaction is categorized to it with the category id `ready_to_assign`, which no generated id ever equals. No group lists it, and `GET /plans/{plan_id}/categories/ready_to_assign` returns 404.
+
+7.8 Hidden categories and groups behave exactly like visible ones; `hidden` is for clients.
+
+<!-- Next: sections 8 to 10 (transactions, transfers, splits). The plan and draft text for every later round are in spec/ROADMAP.md. -->
