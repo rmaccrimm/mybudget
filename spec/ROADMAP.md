@@ -6,7 +6,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 
 - Work is on the superproject branch `ynab-spec`, which the human hasn't merged into `main` yet. `lane.sh` commits inside the submodules on their own `main` branches. Don't push, or merge into `main`, without asking the human.
 - **Round 1 (sections 3 and 4) is complete.** The judge passed 103 of 103 tests at superproject commit `9911cc4` (testsuite `254acec`, server `7dd56c5`).
-- **Round 2 (sections 5 to 7) is green but not finished.** The judge passed 310 of 310 tests at superproject commit `32beace` (testsuite `069da03`, server `ff57440`). The tester's first attack was cut off by a usage limit and committed nothing. The next step is to rerun `round.sh` with run 2's task (the 3.6/5.2 ruling below), adding that the implementation already passes every test, so the tester goes straight to attacking.
+- **Round 2 (sections 5 to 7) is complete.** The judge passed 333 of 333 tests at superproject commit `a565335` (testsuite `c105a26`, server `ff57440`). It took three runs: one tester question (the 3.6/5.2 ruling below), one implementer run that passed every test at once, and one rerun after a usage limit cut the first attack off. The implementer replaced serde_json with its own parser (`server/src/json.rs`) to tell `-0` from `-0.0`.
+- **Round 3 (sections 8 to 10) is next.** Paste them from the appendix after the checklist below. 6.5 and the starting-balance transaction's fields in 5.3 become testable with section 8.
 
 ## How to run a round
 
