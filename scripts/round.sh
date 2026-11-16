@@ -7,6 +7,7 @@
 # It stops for a human when either agent ends with a DISPUTE: or QUESTION: line.
 #
 # Usage: scripts/round.sh "<task, e.g. 'SPEC section 3 (accounts)'>"
+# Set MYBUDGET_ROUND (e.g. 3) to label the round's token usage; it defaults to the task.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,6 +16,9 @@ RES="$CACHE/judge/results"
 MAX_FIXES="${MAX_FIXES:-5}"
 MAX_ATTACKS="${MAX_ATTACKS:-2}"
 task="${1:?usage: $0 \"<task>\"}"
+# Label every agent run's usage with the round, so reruns after a ruling add up together.
+export MYBUDGET_ROUND="${MYBUDGET_ROUND:-$task}"
+trap '"$ROOT/scripts/usage.sh" "$MYBUDGET_ROUND" || true' EXIT
 
 lane() {
   "$ROOT/scripts/lane.sh" "$1" "$2"

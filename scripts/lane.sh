@@ -9,6 +9,7 @@
 #
 # Usage: scripts/lane.sh <tester|implementer> "<prompt>"
 # The session's final message is saved to $MYBUDGET_CACHE/<role>/last-output.md.
+# Token usage is appended to $MYBUDGET_CACHE/usage.jsonl, labelled with $MYBUDGET_ROUND.
 # Set MYBUDGET_MODEL to choose the model.
 set -euo pipefail
 
@@ -53,8 +54,25 @@ status=0
       --permission-mode dontAsk \
       --append-system-prompt-file "$ROOT/roles/$role.md" \
       --no-session-persistence \
+      --output-format json \
       "${extra[@]}"
-) | tee "$state/last-output.md" || status=$?
+) >"$state/last-run.json" || status=$?
+
+# last-output.md stays the agent's final message, so round.sh's QUESTION:/DISPUTE: check still works.
+jq -r '.result // empty' "$state/last-run.json" >"$state/last-output.md" 2>/dev/null || true
+cat "$state/last-output.md"
+
+# One line per run in $CACHE/usage.jsonl, written before the lane checks so failed runs count too.
+# scripts/usage.sh sums it by round (MYBUDGET_ROUND, set by round.sh) and role.
+jq -c --arg round "${MYBUDGET_ROUND:-}" --arg role "$role" --argjson status "$status" '{
+    time: (now | todate), round: $round, role: $role, status: $status,
+    turns: .num_turns, minutes: (.duration_ms / 60000 | round), cost_usd: .total_cost_usd,
+    input:       ([.modelUsage[].inputTokens] | add),
+    output:      ([.modelUsage[].outputTokens] | add),
+    cache_read:  ([.modelUsage[].cacheReadInputTokens] | add),
+    cache_write: ([.modelUsage[].cacheCreationInputTokens] | add),
+    models: .modelUsage }' "$state/last-run.json" >>"$CACHE/usage.jsonl" 2>/dev/null ||
+  echo "lane.sh: no usage recorded for this run (claude produced no JSON result)" >&2
 
 problems=()
 [[ "$(heads)" == "$before" ]] || problems+=("a submodule's HEAD moved (agents must not commit)")

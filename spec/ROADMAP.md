@@ -14,7 +14,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 1. If the round's sections aren't in `SPEC.md` yet, re-read them against the checklist below, then paste them from the appendix in place of the `<!-- Next: ... -->` comment at the end of `SPEC.md`, and add a new comment naming the round after.
 2. Commit. `lane.sh` refuses to start with uncommitted changes.
 3. From the superproject root, start the round in the background with the Mac kept awake (round 1 lost a night to sleep):
-   `caffeinate -i scripts/round.sh "<task>" > <log file> 2>&1`
+   `MYBUDGET_ROUND=<n> caffeinate -i scripts/round.sh "<task>" > <log file> 2>&1`
+   `MYBUDGET_ROUND` labels the token usage of every agent run in the round; use the same number for reruns.
 4. Read the exit status:
    - 0: the round is complete.
    - 1: the implementer was still failing after `MAX_FIXES` runs, or the working tree wasn't clean; the log says which. For failures, read `~/.cache/mybudget/judge/results/` and decide whether the spec is at fault.
@@ -26,6 +27,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
    - Ask the human before any ruling that changes budget behaviour (sections 11 to 18) or goes against a decision listed below.
    - For a dispute, read the clause's tests (`grep -rn spec_5_2_ testsuite/tests`) and their output in `~/.cache/mybudget/judge/results/tests.log`. If the tests ask too much, name them in the rerun's task so the tester fixes them. Only the tester edits `testsuite/`.
 6. An attack that finds nothing new ends the round, even if it also raises a question. Settle the question, run `scripts/judge.sh` (under `caffeinate -i`) to confirm everything passes, and move on. Round 1 ended this way.
+7. When the round is complete, run `scripts/usage.sh <n>` and add its totals to the token usage table below, in the same commit as the "round N is complete" note.
 
 Round 1 took four runs of `round.sh`, and each stopped on a tester question about an edge case: lone surrogates, oversized or deeply nested JSON, percent-encoded paths, `HEAD`, and malformed HTTP. Its last attack found nothing new, so a judge run after the last ruling finished it. Expect the same pattern: the tester reads the server code and probes every corner.
 
@@ -51,6 +53,15 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | `9911cc4` | 3.2, 3.4 | `HEAD` works wherever `GET` does, with no body. What the server does with malformed HTTP is unspecified. |
 | This file's commit | 5 to 7 | Changes made before the round, not rulings: `starting_date` is unused when `starting_balance` is 0; a `PATCH` with a different account `type` returns 400; a `PATCH` naming a category's own group doesn't move it; examples added for 5.6, 6.3, 6.4, 7.4 and 7.6. |
 | `6d0ec8f` | 3.6, 3.7, 5.2, 6.5 | A field the endpoint defines is checked whenever it's present, even when another field leaves it unused: `starting_date` (not nullable) when `starting_balance` is 0, and `payee_name` (a payee name or `null`) when `payee_id` is given. `-0` is an integer meaning 0. |
+
+## Token usage
+
+`lane.sh` appends each agent run's usage to `~/.cache/mybudget/usage.jsonl`, and `round.sh` prints the round's totals when it exits. `scripts/usage.sh [round]` sums them by round and role. Tokens are summed over every model the session used; cache reads are the bulk of the input. Cost is Claude Code's list-price estimate. A run killed before it finishes (a usage limit, a crash) records nothing. Rounds 1 and 2 ran before tracking and left no transcripts.
+
+| Round | Agent runs (tester / implementer) | Input | Output | Cache read | Cache write | Est. cost (USD) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | not tracked | | | | | |
+| 2 | not tracked | | | | | |
 
 ## The rounds
 
