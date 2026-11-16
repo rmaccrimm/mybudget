@@ -430,4 +430,82 @@ POST /plans/PLAN_ID/transactions
 
 10.4 A `PATCH` with `subtransactions` replaces all of them. An empty array makes the transaction an ordinary one again, so in an on-budget account the same request needs a `category_id` (8.2). 8.6 applies: for example, changing a split's `amount` without matching subtransactions returns 400.
 
-<!-- Next: section 11 (months and Ready to Assign). The plan and draft text for every later round are in spec/ROADMAP.md. -->
+## 11. Months and Ready to Assign
+
+Every month, the plan's money is either assigned to categories or Ready to Assign. This section covers plans whose on-budget accounts are all cash accounts. Section 12, still to come, adds credit accounts; until it does, what the months of a plan with a credit account show isn't specified, in particular `cash_advances`, `credit_overspending` and a payment category's entry.
+
+11.1 A line is a transaction in an on-budget account that isn't a split, or one subtransaction of a split in an on-budget account. A line has its transaction's account and date. Only lines affect the plan; transactions in tracking accounts never do.
+
+11.2 Each category has an assigned amount for every month, 0 until set. `PATCH /plans/{plan_id}/months/{month}/categories/{category_id}` with `assigned` sets it, for a user or a payment category. `assigned` is an amount (3.7), may be negative, and isn't nullable. The response is the category's month entry (11.3). `ready_to_assign` isn't a category here: that path returns 404.
+
+```
+PATCH /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
+{"assigned": 400000}
+→ 200
+{"category_id": "GROCERIES_ID", "assigned": 400000, "activity": 0, "available": 400000,
+ "cash_overspending": 0, "credit_overspending": 0}
+```
+
+11.3 `GET /plans/{plan_id}/months/{month}/categories/{category_id}` returns a category's month entry. `activity` is the sum of the amounts of the month's lines with that category (a payment category's activity comes with section 12); `available` is in 11.4, and the overspending fields in 11.5. After 11.2's `PATCH`, in a plan with no transactions:
+
+```
+GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
+→ 200
+{"category_id": "GROCERIES_ID", "assigned": 400000, "activity": 0, "available": 400000,
+ "cash_overspending": 0, "credit_overspending": 0}
+```
+
+11.4 `available` = carryover + `assigned` + `activity`, where carryover is the previous month's `available` if that is positive, and 0 otherwise. Money left in a category rolls into the next month, and an overspent category starts the next month at 0. Before `1900-01` everything is 0.
+
+11.5 A category is overspent when its `available` is negative. `credit_overspending` is the part spent on credit (section 12); it is 0 for a category with no spending in credit accounts that month. `cash_overspending` is the rest: max(0, -`available`) - `credit_overspending`.
+
+11.6 `GET /plans/{plan_id}/months/{month}` returns the month:
+
+- `income`: the sum of the amounts of the month's lines in cash accounts categorized to `ready_to_assign`.
+- `cash_advances`: 0 without credit accounts (section 12).
+- `assigned`: the sum of every category's `assigned` for the month.
+- `activity`: the sum of every user category's `activity` for the month.
+- `cash_overspending_last_month`: the sum of every category's `cash_overspending` in the previous month.
+- `left_over_from_last_month`, `assigned_in_future` and `ready_to_assign`: see 11.7.
+- `categories`: every category's month entry, group by group in the order of 7.1, payment categories included.
+
+11.7 For each month M, let net(M) be `income` + `cash_advances` - `assigned` for M. Then:
+
+- `left_over_from_last_month` is the sum of net over every month before M, minus the sum of `cash_overspending_last_month` over every month before M.
+- pool(M) is `left_over_from_last_month` + net(M) - `cash_overspending_last_month`.
+- shortfall(M) is how far later assignments outrun later money at worst: the largest value of -(net(M+1) + ... + net(L)) over every month L after M, or 0 if none is positive.
+- If pool(M) is negative, `assigned_in_future` is 0 and `ready_to_assign` is pool(M). Otherwise `assigned_in_future` is the smaller of pool(M) and shortfall(M), and `ready_to_assign` is pool(M) - `assigned_in_future`.
+
+So `ready_to_assign` = `left_over_from_last_month` + `income` + `cash_advances` - `cash_overspending_last_month` - `assigned` - `assigned_in_future`. Cash overspending comes out of the following month. Money is only ready in a month if no later month needs it, and a month whose own pool is positive never shows a negative Ready to Assign because of later months; the later month does.
+
+11.8 Example. Checking is created with a starting balance of 3000.00 on 2026-10-01. The group Everyday holds Groceries, Rent and Dining, created in that order. October assigns 400.00 to Groceries, 1200.00 to Rent and 50.00 to Dining, and November assigns 1200.00 to Rent. Checking spends 120.00 on Groceries on 2026-10-04 and 80.00 on Dining on 2026-10-11.
+
+```
+GET /plans/PLAN_ID/months/2026-10
+→ 200
+{"month": "2026-10", "income": 3000000, "cash_advances": 0, "assigned": 1650000,
+ "activity": -200000, "cash_overspending_last_month": 0, "left_over_from_last_month": 0,
+ "assigned_in_future": 1200000, "ready_to_assign": 150000,
+ "categories": [
+  {"category_id": "GROCERIES_ID", "assigned": 400000, "activity": -120000, "available": 280000,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "RENT_ID", "assigned": 1200000, "activity": 0, "available": 1200000,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "DINING_ID", "assigned": 50000, "activity": -80000, "available": -30000,
+   "cash_overspending": 30000, "credit_overspending": 0}]}
+
+GET /plans/PLAN_ID/months/2026-11
+→ 200
+{"month": "2026-11", "income": 0, "cash_advances": 0, "assigned": 1200000,
+ "activity": 0, "cash_overspending_last_month": 30000, "left_over_from_last_month": 1350000,
+ "assigned_in_future": 0, "ready_to_assign": 120000,
+ "categories": [
+  {"category_id": "GROCERIES_ID", "assigned": 0, "activity": 0, "available": 280000,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "RENT_ID", "assigned": 1200000, "activity": 0, "available": 2400000,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "DINING_ID", "assigned": 0, "activity": 0, "available": 0,
+   "cash_overspending": 0, "credit_overspending": 0}]}
+```
+
+<!-- Next: section 12 (credit cards). The plan and draft text for every later round are in spec/ROADMAP.md. -->

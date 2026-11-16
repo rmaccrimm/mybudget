@@ -8,7 +8,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 1 (sections 3 and 4) is complete.** The judge passed 103 of 103 tests at superproject commit `9911cc4` (testsuite `254acec`, server `7dd56c5`).
 - **Round 2 (sections 5 to 7) is complete.** The judge passed 333 of 333 tests at superproject commit `a565335` (testsuite `c105a26`, server `ff57440`). It took three runs: one tester question (the 3.6/5.2 ruling below), one implementer run that passed every test at once, and one rerun after a usage limit cut the first attack off. The implementer replaced serde_json with its own parser (`server/src/json.rs`) to tell `-0` from `-0.0`.
 - **Round 3 (sections 8 to 10) is complete.** The judge passed 563 of 563 tests at superproject commit `7c2b566` (testsuite `efa5c08`, server `4d88767`). It took two runs. The first stopped on an implementer question (ruled in 9.3), and in it neither agent could use Bash, because Claude Code 2.1.325 stopped auto-allowing sandboxed Bash in `dontAsk` mode; `roles/*.json` now set `autoAllowBashIfSandboxed`, and `lane.sh` lists any denied tool calls. The implementer's one run, written without compiling, passed every test. The tester's attack added 19 tests where features meet (splits becoming transfers, moving a transfer's other half) and found nothing new.
-- **Round 4 (section 11) is next.** Paste it from the appendix after the checklist below. Its task keeps the tester to plans without credit accounts.
+- **Round 4 (section 11) is running.** Section 11 is in `SPEC.md`, with credit accounts left unspecified until section 12 (see the rulings below).
 
 ## How to run a round
 
@@ -56,6 +56,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | `6d0ec8f` | 3.6, 3.7, 5.2, 6.5 | A field the endpoint defines is checked whenever it's present, even when another field leaves it unused: `starting_date` (not nullable) when `starting_balance` is 0, and `payee_name` (a payee name or `null`) when `payee_id` is given. `-0` is an integer meaning 0. |
 | This file's commit | 8 to 10 | Changes made before round 3, not rulings: context for 8.5's example; in a `PATCH` the payee changes only when `payee_id` is present or `payee_name` is a string, and a left-out `category_id` becomes `null` when the result can't have one (8.6); a subtransaction's `category_id` is required (10.1); a split made ordinary again needs a category in the same request (10.4); wording in 9.2, 9.3 and 9.5. |
 | This file's commit | 8.6, 9.3 | A `PATCH` to the tracking half of an on-budget/tracking transfer that leaves `category_id` out keeps the on-budget half's category, even when the other half moves to another on-budget account; with no on-budget half before, it needs a `category_id`. (Implementer question, round 3.) |
+| This file's commit | 11 | Changes made before round 4, not rulings: until section 12, what a plan with a credit account shows in its months isn't specified, and 11's references to 12.3 to 12.5 point at section 12; `assigned` is an amount and not nullable (11.2); an example for `GET` on a category's month (11.3); the month's `categories` go group by group (11.6). |
 
 ## Token usage
 
@@ -74,7 +75,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 2 | 5 to 7, already in `SPEC.md` | `SPEC sections 5 to 7 (accounts, payees, categories)` | 3.7 and 3.8 become testable through `starting_balance` and `starting_date`. Starting-balance transactions only show through balances and payees until round 3. |
 | 3 | 8 to 10 | `SPEC sections 8 to 10 (transactions, transfers, splits)` | These refer to each other, so they go in together. It's the largest round; consider `MAX_FIXES=8`. |
 | 4 | 11 | `SPEC section 11 (months and Ready to Assign), for plans without credit accounts; section 12 covers those next round` | 11 refers ahead to 12 for the credit fields, so the task keeps the tester to cash accounts. |
-| 5 | 12 | `SPEC section 12 (credit cards)` | The hardest maths. Check 12.2 to 12.5 and the example in 12.7 before pasting. |
+| 5 | 12 | `SPEC section 12 (credit cards)` | The hardest maths. Check 12.2 to 12.5 and the example in 12.7 before pasting. Section 11 was pasted with credit accounts left unspecified: point 11.3, 11.5 and 11.6 back at 12.4, 12.3 and 12.5, and drop the intro's sentence saying credit months aren't specified. |
 | 6 | 13 | `SPEC section 13 (deleting categories). DELETE on a category returned 405 until now.` | |
 | 7 | 14 | `SPEC section 14 (reconciliation)` | |
 | 8 | 15 | `SPEC section 15 (persistence)` | The tester will extend `Server` to pass env vars and restart on the same data directory. The judge's per-test scratch folder (`TMPDIR`) is writable. |
@@ -151,82 +152,11 @@ The numbers in the examples in 11.8, 12.7, 13.3, 17.2 and 18.3 were checked agai
 
 The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. The recurrence dates in 16.4 and 16.5 were generated the same way.
 
-## Appendix: draft sections 11 to 18
+## Appendix: draft sections 12 to 18
 
 Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them. Sections 17 and 18 wait for the open questions above.
 
 ````markdown
-## 11. Months and Ready to Assign
-
-Every month, the plan's money is either assigned to categories or Ready to Assign. This section covers cash accounts; section 12 adds credit accounts.
-
-11.1 A line is a transaction in an on-budget account that isn't a split, or one subtransaction of a split in an on-budget account. A line has its transaction's account and date. Only lines affect the plan; transactions in tracking accounts never do.
-
-11.2 Each category has an assigned amount for every month, 0 until set. `PATCH /plans/{plan_id}/months/{month}/categories/{category_id}` with `assigned` sets it, for a user or a payment category. It may be negative. The response is the category's month entry (11.3). `ready_to_assign` isn't a category here: that path returns 404.
-
-```
-PATCH /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
-{"assigned": 400000}
-→ 200
-{"category_id": "GROCERIES_ID", "assigned": 400000, "activity": 0, "available": 400000,
- "cash_overspending": 0, "credit_overspending": 0}
-```
-
-11.3 `GET /plans/{plan_id}/months/{month}/categories/{category_id}` returns a category's month entry. `activity` is the sum of the amounts of the month's lines with that category (a payment category's activity is in 12.4); `available` is in 11.4, and the overspending fields in 11.5.
-
-11.4 `available` = carryover + `assigned` + `activity`, where carryover is the previous month's `available` if that is positive, and 0 otherwise. Money left in a category rolls into the next month, and an overspent category starts the next month at 0. Before `1900-01` everything is 0.
-
-11.5 A category is overspent when its `available` is negative. `credit_overspending` is the part spent on credit (12.3); it is 0 for a category with no spending in credit accounts that month. `cash_overspending` is the rest: max(0, -`available`) - `credit_overspending`.
-
-11.6 `GET /plans/{plan_id}/months/{month}` returns the month:
-
-- `income`: the sum of the amounts of the month's lines in cash accounts categorized to `ready_to_assign`.
-- `cash_advances`: see 12.5; 0 without credit accounts.
-- `assigned`: the sum of every category's `assigned` for the month.
-- `activity`: the sum of every user category's `activity` for the month.
-- `cash_overspending_last_month`: the sum of every category's `cash_overspending` in the previous month.
-- `left_over_from_last_month`, `assigned_in_future` and `ready_to_assign`: see 11.7.
-- `categories`: every category's month entry, in the order of 7.1.
-
-11.7 For each month M, let net(M) be `income` + `cash_advances` - `assigned` for M. Then:
-
-- `left_over_from_last_month` is the sum of net over every month before M, minus the sum of `cash_overspending_last_month` over every month before M.
-- pool(M) is `left_over_from_last_month` + net(M) - `cash_overspending_last_month`.
-- shortfall(M) is how far later assignments outrun later money at worst: the largest value of -(net(M+1) + ... + net(L)) over every month L after M, or 0 if none is positive.
-- If pool(M) is negative, `assigned_in_future` is 0 and `ready_to_assign` is pool(M). Otherwise `assigned_in_future` is the smaller of pool(M) and shortfall(M), and `ready_to_assign` is pool(M) - `assigned_in_future`.
-
-So `ready_to_assign` = `left_over_from_last_month` + `income` + `cash_advances` - `cash_overspending_last_month` - `assigned` - `assigned_in_future`. Cash overspending comes out of the following month. Money is only ready in a month if no later month needs it, and a month whose own pool is positive never shows a negative Ready to Assign because of later months; the later month does.
-
-11.8 Example. Checking is created with a starting balance of 3000.00 on 2026-10-01. The group Everyday holds Groceries, Rent and Dining, created in that order. October assigns 400.00 to Groceries, 1200.00 to Rent and 50.00 to Dining, and November assigns 1200.00 to Rent. Checking spends 120.00 on Groceries on 2026-10-04 and 80.00 on Dining on 2026-10-11.
-
-```
-GET /plans/PLAN_ID/months/2026-10
-→ 200
-{"month": "2026-10", "income": 3000000, "cash_advances": 0, "assigned": 1650000,
- "activity": -200000, "cash_overspending_last_month": 0, "left_over_from_last_month": 0,
- "assigned_in_future": 1200000, "ready_to_assign": 150000,
- "categories": [
-  {"category_id": "GROCERIES_ID", "assigned": 400000, "activity": -120000, "available": 280000,
-   "cash_overspending": 0, "credit_overspending": 0},
-  {"category_id": "RENT_ID", "assigned": 1200000, "activity": 0, "available": 1200000,
-   "cash_overspending": 0, "credit_overspending": 0},
-  {"category_id": "DINING_ID", "assigned": 50000, "activity": -80000, "available": -30000,
-   "cash_overspending": 30000, "credit_overspending": 0}]}
-
-GET /plans/PLAN_ID/months/2026-11
-→ 200
-{"month": "2026-11", "income": 0, "cash_advances": 0, "assigned": 1200000,
- "activity": 0, "cash_overspending_last_month": 30000, "left_over_from_last_month": 1350000,
- "assigned_in_future": 0, "ready_to_assign": 120000,
- "categories": [
-  {"category_id": "GROCERIES_ID", "assigned": 0, "activity": 0, "available": 280000,
-   "cash_overspending": 0, "credit_overspending": 0},
-  {"category_id": "RENT_ID", "assigned": 1200000, "activity": 0, "available": 2400000,
-   "cash_overspending": 0, "credit_overspending": 0},
-  {"category_id": "DINING_ID", "assigned": 0, "activity": 0, "available": 0,
-   "cash_overspending": 0, "credit_overspending": 0}]}
-```
-
 ## 12. Credit cards
 
 When you spend on a credit card from a category that has the money, that money moves to the card's payment category, ready to pay the bill. Spending beyond what the category has becomes debt instead.
