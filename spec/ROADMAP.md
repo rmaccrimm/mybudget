@@ -8,7 +8,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 1 (sections 3 and 4) is complete.** The judge passed 103 of 103 tests at superproject commit `9911cc4` (testsuite `254acec`, server `7dd56c5`).
 - **Round 2 (sections 5 to 7) is complete.** The judge passed 333 of 333 tests at superproject commit `a565335` (testsuite `c105a26`, server `ff57440`). It took three runs: one tester question (the 3.6/5.2 ruling below), one implementer run that passed every test at once, and one rerun after a usage limit cut the first attack off. The implementer replaced serde_json with its own parser (`server/src/json.rs`) to tell `-0` from `-0.0`.
 - **Round 3 (sections 8 to 10) is complete.** The judge passed 563 of 563 tests at superproject commit `7c2b566` (testsuite `efa5c08`, server `4d88767`). It took two runs. The first stopped on an implementer question (ruled in 9.3), and in it neither agent could use Bash, because Claude Code 2.1.325 stopped auto-allowing sandboxed Bash in `dontAsk` mode; `roles/*.json` now set `autoAllowBashIfSandboxed`, and `lane.sh` lists any denied tool calls. The implementer's one run, written without compiling, passed every test. The tester's attack added 19 tests where features meet (splits becoming transfers, moving a transfer's other half) and found nothing new.
-- **Round 4 (section 11) is running.** Section 11 is in `SPEC.md`, with credit accounts left unspecified until section 12 (see the rulings below).
+- **Round 4 (section 11) is complete.** The judge passed 640 of 640 tests at superproject commit `e3575ff` (testsuite `b70fea3`, server `928d991`), in one run of `round.sh`: one implementer run made the tester's 67 failing tests pass, and the attack (lines from unapproved transactions, the ends of the date range, edited transfer halves) found nothing new. Section 11 was pasted with credit accounts left unspecified until section 12.
+- **Round 5 (section 12) is next.** See its notes in the table below: section 11's references to section 12 need pointing back at 12.3 to 12.5.
 
 ## How to run a round
 
@@ -67,6 +68,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 1 | not tracked | | | | | |
 | 2 | not tracked | | | | | |
 | 3 | 3 / 1 | 178 | 215,018 | 8,346,360 | 541,687 | 10.30 |
+| 4 | 2 / 1 | 104 | 107,650 | 3,864,488 | 322,560 | 5.51 |
 
 ## The rounds
 
