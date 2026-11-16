@@ -284,4 +284,150 @@ PATCH /plans/PLAN_ID/categories/RENT_ID
 
 7.8 Hidden categories and groups behave exactly like visible ones; `hidden` is for clients.
 
-<!-- Next: sections 8 to 10 (transactions, transfers, splits). The plan and draft text for every later round are in spec/ROADMAP.md. -->
+## 8. Transactions
+
+8.1 `POST /plans/{plan_id}/transactions` creates a transaction from:
+
+- `account_id`, `date` and `amount`: required.
+- `payee_id`, nullable, or `payee_name` (6.5): optional; without either, the transaction has no payee.
+- `category_id`, nullable: see 8.2.
+- `memo`, nullable: default `null`.
+- `cleared`: `"uncleared"`, `"cleared"` or `"reconciled"`. The default is `"cleared"` in an account whose `type` is `"cash"` (money in a wallet clears at once) and `"uncleared"` in any other.
+- `approved`: a boolean, default true.
+- `flag_color`, nullable: `"red"`, `"orange"`, `"yellow"`, `"green"`, `"blue"` or `"purple"`; default `null`.
+- `subtransactions`: see section 10.
+
+```
+POST /plans/PLAN_ID/transactions
+{"account_id": "CHECKING_ID", "date": "2026-10-04", "amount": -120000,
+ "payee_name": "Corner Shop", "category_id": "GROCERIES_ID", "memo": "weekly shop"}
+→ 201
+{"id": "SHOP_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-04", "amount": -120000,
+ "payee_id": "CORNER_SHOP_ID", "category_id": "GROCERIES_ID", "memo": "weekly shop",
+ "cleared": "uncleared", "approved": true, "flag_color": null,
+ "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}
+```
+
+8.2 For a transaction that is neither a transfer (section 9) nor a split (section 10), `category_id` depends on the account:
+
+- In an on-budget account it is required: a user category's id, or `ready_to_assign`. In a cash account, `ready_to_assign` marks income. In a credit account it marks a change in what's owed that doesn't touch the plan, such as a statement credit.
+- In a tracking account it must be `null` or absent.
+
+A payment category's id is never allowed. Anything else returns 400.
+
+```
+POST /plans/PLAN_ID/transactions
+{"account_id": "CHECKING_ID", "date": "2026-10-15", "amount": 1800000, "payee_name": "Employer",
+ "category_id": "ready_to_assign"}
+→ 201
+{"id": "PAY_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-15", "amount": 1800000,
+ "payee_id": "EMPLOYER_ID", "category_id": "ready_to_assign", "memo": null,
+ "cleared": "uncleared", "approved": true, "flag_color": null,
+ "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}
+```
+
+8.3 A transaction whose payee is a transfer payee is a transfer, and section 9 applies to it.
+
+8.4 `GET /plans/{plan_id}/transactions/{transaction_id}` returns a transaction.
+
+8.5 `GET /plans/{plan_id}/transactions` lists the plan's transactions by date, and oldest first within a date. These query parameters filter it, and combine:
+
+- `account_id`, `payee_id`: transactions with that account or payee.
+- `category_id`: transactions with that category, or with a subtransaction that has it.
+- `since_date`, `until_date`: transactions dated on or after, or on or before, that date.
+- `approved`: `true` or `false`.
+
+An id that matches nothing gives an empty list. A malformed date, or an `approved` other than `true` or `false`, returns 400.
+
+For a plan holding 5.2's Checking and the transactions in 8.1 and 8.2:
+
+```
+GET /plans/PLAN_ID/transactions?account_id=CHECKING_ID&since_date=2026-10-02&until_date=2026-10-10
+→ 200
+[{"id": "SHOP_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-04", "amount": -120000,
+  "payee_id": "CORNER_SHOP_ID", "category_id": "GROCERIES_ID", "memo": "weekly shop",
+  "cleared": "uncleared", "approved": true, "flag_color": null,
+  "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}]
+```
+
+8.6 `PATCH /plans/{plan_id}/transactions/{transaction_id}` can change any field in 8.1 except `account_id`; an `account_id` different from the transaction's returns 400. The changed transaction must meet every rule a new one must (8.2, sections 9 and 10); if it doesn't, the request returns 400.
+
+- The payee changes when `payee_id` is present or `payee_name` is a string, and is then chosen as 6.5 says: `"payee_id": null` with no `payee_name` string removes it. `"payee_name": null` on its own changes nothing.
+- A field the `PATCH` leaves out keeps its value, except `category_id`: it becomes `null` when the changed transaction can't have a category, because it's a split or a transfer whose halves have none (9.3). A `category_id` the request gives is checked as usual, so a non-null one there returns 400.
+
+```
+PATCH /plans/PLAN_ID/transactions/SHOP_TXN_ID
+{"cleared": "cleared", "flag_color": "green"}
+→ 200
+{"id": "SHOP_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-04", "amount": -120000,
+ "payee_id": "CORNER_SHOP_ID", "category_id": "GROCERIES_ID", "memo": "weekly shop",
+ "cleared": "cleared", "approved": true, "flag_color": "green",
+ "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}
+```
+
+8.7 `DELETE /plans/{plan_id}/transactions/{transaction_id}` deletes a transaction.
+
+```
+DELETE /plans/PLAN_ID/transactions/SHOP_TXN_ID
+→ 204
+```
+
+## 9. Transfers
+
+9.1 A transaction in account A whose payee is account B's transfer payee is a transfer from A to B. Creating it also creates its other half in B, after it: same date, opposite amount, A's transfer payee, same memo, `cleared` defaulting as 8.1 says for B, `approved` true and no flag. Each half's `transfer_account_id` is the other half's account, and its `transfer_transaction_id` is the other half's id. Both are `null` on transactions that aren't transfers.
+
+```
+POST /plans/PLAN_ID/transactions
+{"account_id": "CHECKING_ID", "date": "2026-10-05", "amount": -500000, "payee_id": "SAVINGS_PAYEE_ID"}
+→ 201
+{"id": "OUT_ID", "account_id": "CHECKING_ID", "date": "2026-10-05", "amount": -500000,
+ "payee_id": "SAVINGS_PAYEE_ID", "category_id": null, "memo": null,
+ "cleared": "uncleared", "approved": true, "flag_color": null,
+ "transfer_account_id": "SAVINGS_ID", "transfer_transaction_id": "IN_ID", "subtransactions": []}
+
+GET /plans/PLAN_ID/transactions/IN_ID
+→ 200
+{"id": "IN_ID", "account_id": "SAVINGS_ID", "date": "2026-10-05", "amount": 500000,
+ "payee_id": "CHECKING_PAYEE_ID", "category_id": null, "memo": null,
+ "cleared": "uncleared", "approved": true, "flag_color": null,
+ "transfer_account_id": "CHECKING_ID", "transfer_transaction_id": "OUT_ID", "subtransactions": []}
+```
+
+9.2 A transfer from an account to itself returns 400, and so does a transfer with a non-empty `subtransactions` array.
+
+9.3 Categories on transfers:
+
+- Between two on-budget accounts, or two tracking accounts, neither half has a category, and a non-null `category_id` returns 400.
+- Between an on-budget account and a tracking account, money enters or leaves the plan. The on-budget half follows 8.2 for its account, so it needs a category, and the tracking half has none. The `category_id` of a `POST` or `PATCH` sets the on-budget half's category, whichever half the request is for.
+
+9.4 Changing `date` or `amount` on either half changes the other to match: the same date and the opposite amount. `memo`, `cleared`, `approved` and `flag_color` belong to the half they're set on.
+
+9.5 Changing a transfer's payee to one that isn't a transfer payee, or to `null`, deletes the other half. Changing it to another account's transfer payee deletes the other half and creates a new one in that account, as 9.1 says. Changing an ordinary transaction's payee to a transfer payee creates the other half, as 9.1 says. 8.6 applies to the result: for example, an on-budget account's half left without a transfer needs a category in the same request.
+
+9.6 Deleting either half deletes both.
+
+## 10. Split transactions
+
+10.1 A transaction with a non-empty `subtransactions` array is a split. `subtransactions` is an array of objects, each with a required `amount`, a required `category_id` (10.2), and a nullable `memo` defaulting to `null`. The subtransactions' amounts must add up to the transaction's amount, and the transaction's own `category_id` must be `null` (or, in a `POST`, absent; 8.6 covers a `PATCH`); otherwise 400.
+
+```
+POST /plans/PLAN_ID/transactions
+{"account_id": "CHECKING_ID", "date": "2026-10-06", "amount": -90000, "payee_name": "Megastore",
+ "subtransactions": [{"amount": -60000, "category_id": "GROCERIES_ID"},
+                     {"amount": -30000, "category_id": "HOUSEHOLD_ID", "memo": "light bulbs"}]}
+→ 201
+{"id": "SPLIT_ID", "account_id": "CHECKING_ID", "date": "2026-10-06", "amount": -90000,
+ "payee_id": "MEGASTORE_ID", "category_id": null, "memo": null,
+ "cleared": "uncleared", "approved": true, "flag_color": null,
+ "transfer_account_id": null, "transfer_transaction_id": null,
+ "subtransactions": [{"amount": -60000, "category_id": "GROCERIES_ID", "memo": null},
+                     {"amount": -30000, "category_id": "HOUSEHOLD_ID", "memo": "light bulbs"}]}
+```
+
+10.2 Each subtransaction's `category_id` follows 8.2 for the transaction's account. Splits aren't allowed in tracking accounts (400).
+
+10.3 Responses list subtransactions in the order they were given, each with `amount`, `category_id` and `memo`. A transaction that isn't a split has `"subtransactions": []`.
+
+10.4 A `PATCH` with `subtransactions` replaces all of them. An empty array makes the transaction an ordinary one again, so in an on-budget account the same request needs a `category_id` (8.2). 8.6 applies: for example, changing a split's `amount` without matching subtransactions returns 400.
+
+<!-- Next: section 11 (months and Ready to Assign). The plan and draft text for every later round are in spec/ROADMAP.md. -->
