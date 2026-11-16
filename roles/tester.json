@@ -11,6 +11,7 @@
   "sandbox": {
     "enabled": true,
     "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": true,
     "filesystem": {
       "allowWrite": ["@CACHE@/tester/target", "@CACHE@/tester/cargo-home"]
     },

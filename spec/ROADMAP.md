@@ -7,7 +7,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - Work is on the superproject branch `ynab-spec`, which the human hasn't merged into `main` yet. `lane.sh` commits inside the submodules on their own `main` branches. Don't push, or merge into `main`, without asking the human.
 - **Round 1 (sections 3 and 4) is complete.** The judge passed 103 of 103 tests at superproject commit `9911cc4` (testsuite `254acec`, server `7dd56c5`).
 - **Round 2 (sections 5 to 7) is complete.** The judge passed 333 of 333 tests at superproject commit `a565335` (testsuite `c105a26`, server `ff57440`). It took three runs: one tester question (the 3.6/5.2 ruling below), one implementer run that passed every test at once, and one rerun after a usage limit cut the first attack off. The implementer replaced serde_json with its own parser (`server/src/json.rs`) to tell `-0` from `-0.0`.
-- **Round 3 (sections 8 to 10) is running.** The sections are in `SPEC.md`, with the changes listed under rulings below. 6.5 and the starting-balance transaction's fields in 5.3 become testable with section 8. It's the first round with token usage tracked.
+- **Round 3 (sections 8 to 10) is running.** The sections are in `SPEC.md`, with the changes listed under rulings below. 6.5 and the starting-balance transaction's fields in 5.3 become testable with section 8. It's the first round with token usage tracked. Its first run stopped on an implementer question (ruled in 9.3). In that run neither agent could use Bash, because Claude Code 2.1.325 stopped auto-allowing sandboxed Bash in `dontAsk` mode; `roles/*.json` now set `autoAllowBashIfSandboxed`, and `lane.sh` prints any denied tool calls.
 
 ## How to run a round
 

@@ -66,13 +66,18 @@ cat "$state/last-output.md"
 # scripts/usage.sh sums it by round (MYBUDGET_ROUND, set by round.sh) and role.
 jq -c --arg round "${MYBUDGET_ROUND:-}" --arg role "$role" --argjson status "$status" '{
     time: (now | todate), round: $round, role: $role, status: $status,
-    turns: .num_turns, minutes: (.duration_ms / 60000 | round), cost_usd: .total_cost_usd,
+    turns: .num_turns, denials: (.permission_denials | length), minutes: (.duration_ms / 60000 | round), cost_usd: .total_cost_usd,
     input:       ([.modelUsage[].inputTokens] | add),
     output:      ([.modelUsage[].outputTokens] | add),
     cache_read:  ([.modelUsage[].cacheReadInputTokens] | add),
     cache_write: ([.modelUsage[].cacheCreationInputTokens] | add),
     models: .modelUsage }' "$state/last-run.json" >>"$CACHE/usage.jsonl" 2>/dev/null ||
   echo "lane.sh: no usage recorded for this run (claude produced no JSON result)" >&2
+# Denied tool calls mean the role's settings block work it needs, as when a Claude Code
+# update stopped auto-allowing sandboxed Bash. Make them visible in the round's log.
+jq -r '.permission_denials // [] | select(length > 0) |
+  "lane.sh: \(length) tool call(s) were denied:", (.[] | "  - \(.tool_name): \(.tool_input.command // .tool_input.file_path // "" | tostring | gsub("\n"; " ") | .[0:120])")' \
+  "$state/last-run.json" >&2 2>/dev/null || true
 
 problems=()
 [[ "$(heads)" == "$before" ]] || problems+=("a submodule's HEAD moved (agents must not commit)")
