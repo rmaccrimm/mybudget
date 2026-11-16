@@ -54,6 +54,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 5 to 7 | Changes made before the round, not rulings: `starting_date` is unused when `starting_balance` is 0; a `PATCH` with a different account `type` returns 400; a `PATCH` naming a category's own group doesn't move it; examples added for 5.6, 6.3, 6.4, 7.4 and 7.6. |
 | `6d0ec8f` | 3.6, 3.7, 5.2, 6.5 | A field the endpoint defines is checked whenever it's present, even when another field leaves it unused: `starting_date` (not nullable) when `starting_balance` is 0, and `payee_name` (a payee name or `null`) when `payee_id` is given. `-0` is an integer meaning 0. |
 | This file's commit | 8 to 10 | Changes made before round 3, not rulings: context for 8.5's example; in a `PATCH` the payee changes only when `payee_id` is present or `payee_name` is a string, and a left-out `category_id` becomes `null` when the result can't have one (8.6); a subtransaction's `category_id` is required (10.1); a split made ordinary again needs a category in the same request (10.4); wording in 9.2, 9.3 and 9.5. |
+| This file's commit | 8.6, 9.3 | A `PATCH` to the tracking half of an on-budget/tracking transfer that leaves `category_id` out keeps the on-budget half's category, even when the other half moves to another on-budget account; with no on-budget half before, it needs a `category_id`. (Implementer question, round 3.) |
 
 ## Token usage
 

@@ -398,7 +398,7 @@ GET /plans/PLAN_ID/transactions/IN_ID
 9.3 Categories on transfers:
 
 - Between two on-budget accounts, or two tracking accounts, neither half has a category, and a non-null `category_id` returns 400.
-- Between an on-budget account and a tracking account, money enters or leaves the plan. The on-budget half follows 8.2 for its account, so it needs a category, and the tracking half has none. The `category_id` of a `POST` or `PATCH` sets the on-budget half's category, whichever half the request is for.
+- Between an on-budget account and a tracking account, money enters or leaves the plan. The on-budget half follows 8.2 for its account, so it needs a category, and the tracking half has none. The `category_id` of a `POST` or `PATCH` sets the on-budget half's category, whichever half the request is for. A `PATCH` to the tracking half that leaves `category_id` out keeps the on-budget half's category, even when it moves that half to another on-budget account (9.5). When there was no on-budget half before the `PATCH`, there's no category to keep, so the request needs a `category_id`.
 
 9.4 Changing `date` or `amount` on either half changes the other to match: the same date and the opposite amount. `memo`, `cleared`, `approved` and `flag_color` belong to the half they're set on.
 
