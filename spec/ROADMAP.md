@@ -2,7 +2,7 @@
 
 This is for the agent that resumes the work. The goal is a server that replicates YNAB's core budgeting, specified in `SPEC.md` and built one round at a time by the tester and implementer (see `README.md` for how rounds work). Sections 3 to 18 were drafted together from research into YNAB; this file holds the plan for the rounds still to run, the rules for running them, and the draft text of the sections not yet in `SPEC.md`.
 
-## Where things stand (2026-11-16)
+## Where things stand (2026-11-17)
 
 - Work is on the superproject branch `ynab-spec`, which the human hasn't merged into `main` yet. `lane.sh` commits inside the submodules on their own `main` branches. Don't push, or merge into `main`, without asking the human.
 - **Round 1 (sections 3 and 4) is complete.** The judge passed 103 of 103 tests at superproject commit `9911cc4` (testsuite `254acec`, server `7dd56c5`).
@@ -11,7 +11,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 4 (section 11) is complete.** The judge passed 640 of 640 tests at superproject commit `e3575ff` (testsuite `b70fea3`, server `928d991`), in one run of `round.sh`: one implementer run made the tester's 67 failing tests pass, and the attack (lines from unapproved transactions, the ends of the date range, edited transfer halves) found nothing new. Section 11 was pasted with credit accounts left unspecified until section 12.
 - **Round 5 (section 12) is complete.** The judge passed 714 of 714 tests at superproject commit `6755ed4` (testsuite `937c53a`, server `775ddec`), in one run of `round.sh` with the tester at xhigh effort. One 2-minute implementer run made the tester's 54 failing tests pass. The attack found nothing new; it added worked scenarios for edits and a model-based test in `testsuite/` (four seeds of 360 random edits, checked against the tester's own model of sections 11 and 12), which guard this code before section 13 changes it.
 - **Refactor round 1 is complete.** A code review found the server hand-rolling what axum, serde and `indexmap` provide, and repeating rules in several places. `roles/implementer.md` gained a "How the code should look" section, and `round.sh` gained `START=implementer` for rounds with no new tests first. With the brief in `spec/refactor-1.md`, the implementer moved the server to axum's `Router`, serde views, `IndexMap` storage and a `Month` type in one run (a first run hit a usage limit). The judge passed 714 of 714; the tester's attack found nothing new and asked about query decoding, ruled in 3.5. A final judge run passed 717 of 717 at superproject commit `b7694c5` (testsuite `de71230`, server `ece59d4`).
-- **Round 6 (section 13) is next.** Its task must say that `DELETE` on a category returned 405 until now.
+- **Round 6 (section 13) is complete.** The judge passed 766 of 766 tests at superproject commit `032b3c7` (testsuite `f272024`, server `df0a08f`), in one run of `round.sh`. Section 13 was tightened before pasting (see the rulings). One implementer run made the tester's 36 failing tests pass, and the attack (concurrent deletes, credit funding after a merge, transfers and splits whose category moved) found nothing new. The tester reads a bare `?reassign_to` as present with an empty value (400), as its 8.5 tests do for `since_date=`.
+- **Round 7 (section 14) is next.**
 
 ## How to run a round
 
@@ -78,6 +79,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 4 | 2 / 1 | 104 | 107,650 | 3,864,488 | 322,560 | 5.51 |
 | 5 | 2 / 1 | 148 | 195,078 | 10,011,759 | 503,208 | 9.93 |
 | refactor-1 | 1 / 2 | 184 | 174,767 | 12,087,108 | 483,818 | 9.78 |
+| 6 | 2 / 1 | 128 | 120,653 | 5,747,449 | 389,243 | 6.68 |
 
 ## The rounds
 
