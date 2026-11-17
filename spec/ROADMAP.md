@@ -32,6 +32,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 6. An attack that finds nothing new ends the round, even if it also raises a question. Settle the question, run `scripts/judge.sh` (under `caffeinate -i`) to confirm everything passes, and move on. Round 1 ended this way.
 7. When the round is complete, run `scripts/usage.sh <n>` and add its totals to the token usage table below, in the same commit as the "round N is complete" note.
 
+For a refactor, where the spec doesn't change, start with `START=implementer` so the implementer runs first; the judge and the tester's attacks then follow as usual. Write the brief in a file under `spec/` and pass its text as the task: `START=implementer MYBUDGET_ROUND=refactor-1 caffeinate -i scripts/round.sh "$(cat spec/refactor-1.md)"`.
+
 Round 1 took four runs of `round.sh`, and each stopped on a tester question about an edge case: lone surrogates, oversized or deeply nested JSON, percent-encoded paths, `HEAD`, and malformed HTTP. Its last attack found nothing new, so a judge run after the last ruling finished it. Expect the same pattern: the tester reads the server code and probes every corner.
 
 `scripts/test.sh` stops at the first test binary that fails; pass `--no-fail-fast` to see every result. The judge runs each test separately, so it isn't affected.

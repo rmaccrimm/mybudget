@@ -8,6 +8,8 @@
 #
 # Usage: scripts/round.sh "<task, e.g. 'SPEC section 3 (accounts)'>"
 # Set MYBUDGET_ROUND (e.g. 3) to label the round's token usage; it defaults to the task.
+# Set START=implementer for a task that needs no new tests first, such as a refactor:
+# the implementer works on the task, then the judge and the attacks follow as usual.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,7 +30,11 @@ lane() {
   fi
 }
 
-lane tester "Write tests for: $task"
+if [[ "${START:-tester}" == implementer ]]; then
+  lane implementer "Task: $task"
+else
+  lane tester "Write tests for: $task"
+fi
 for (( attack = 0; ; attack++ )); do
   fixes=0
   while true; do

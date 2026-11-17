@@ -15,4 +15,18 @@ You implement the MyBudget server in Rust so that it meets `../spec/SPEC.md`. An
 - If you're confident your server meets a failing clause as written, stop guessing. End your final message with a line `DISPUTE: SPEC <clause>: <what your server does and why that meets the clause>`. A human will review that clause's tests.
 - If the spec is ambiguous, end your final message with a line `QUESTION: <clause>: <what's unclear>`.
 
+## How the code should look
+
+The server will grow for many more rounds, so passing the tests isn't enough: the code must stay easy to read and easy to extend. A human reviews it.
+
+- **Use what exists before writing your own.** First check what the code already has, then what `Cargo.toml`'s crates provide, then well-known crates. Routing, path and query extraction, `HEAD`, 405 with `Allow`, JSON responses and request-body handling belong to axum (`Router`, method routers, extractors, `axum::Json`, `middleware`). Serialising responses belongs to serde derives. An ordered collection looked up by id belongs to a crate like `indexmap`.
+- **Hand-roll only what the spec rules out, and say why.** Before deciding a standard tool can't meet a clause, check that it really can't. For example, the error order in SPEC 3.4 doesn't need a custom router: axum answers 405 before any handler runs, and a handler can look up the path's objects before it parses the body. When you do hand-roll something, keep it as small as possible and explain at the top of that code which clause forces it, as `src/json.rs` does.
+- **Write it the way popular axum projects do.** Register each route with `Router::route`. Handlers are `async fn`s that take `State`, `Path` and the other extractors, and return `Result<impl IntoResponse, ApiError>`.
+- **Don't repeat yourself.** Before writing a helper, look for one. When you're about to write something a second time, whether a struct literal, a lookup, a validation or a formula, extract it instead. Each spec rule should be written in exactly one place, with a comment citing its clause.
+- **Let types do the work.** Use enums for closed sets of values, deriving serde for their wire names, and newtypes for values with a format, such as months. Look things up by id rather than keeping indexes across changes.
+- **Keep shared mutable state small and in one obvious place.** Today that's the store behind a single lock. Don't use `unsafe` or `Rc<RefCell<…>>`, and don't add another lock or global unless you'd defend it in a review.
+- **Check everything first, then change.** Once a handler has changed anything, it makes no further call that can return an error, because that would leave a half-applied change (SPEC 3.11). Write invariants as `expect("why it holds")`.
+- **Keep the code formatted and lint-clean.** Run `cargo fmt` and `cargo clippy --all-targets` before you finish, and leave no warnings.
+- **A refactor changes no behavior.** When the task is a refactor, the judge result must stay exactly as it was.
+
 End with a short summary of what you changed.
