@@ -9,7 +9,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 2 (sections 5 to 7) is complete.** The judge passed 333 of 333 tests at superproject commit `a565335` (testsuite `c105a26`, server `ff57440`). It took three runs: one tester question (the 3.6/5.2 ruling below), one implementer run that passed every test at once, and one rerun after a usage limit cut the first attack off. The implementer replaced serde_json with its own parser (`server/src/json.rs`) to tell `-0` from `-0.0`.
 - **Round 3 (sections 8 to 10) is complete.** The judge passed 563 of 563 tests at superproject commit `7c2b566` (testsuite `efa5c08`, server `4d88767`). It took two runs. The first stopped on an implementer question (ruled in 9.3), and in it neither agent could use Bash, because Claude Code 2.1.325 stopped auto-allowing sandboxed Bash in `dontAsk` mode; `roles/*.json` now set `autoAllowBashIfSandboxed`, and `lane.sh` lists any denied tool calls. The implementer's one run, written without compiling, passed every test. The tester's attack added 19 tests where features meet (splits becoming transfers, moving a transfer's other half) and found nothing new.
 - **Round 4 (section 11) is complete.** The judge passed 640 of 640 tests at superproject commit `e3575ff` (testsuite `b70fea3`, server `928d991`), in one run of `round.sh`: one implementer run made the tester's 67 failing tests pass, and the attack (lines from unapproved transactions, the ends of the date range, edited transfer halves) found nothing new. Section 11 was pasted with credit accounts left unspecified until section 12.
-- **Round 5 (section 12) is running.** Section 12 is in `SPEC.md`, and section 11 covers credit accounts again. It's the first round with the tester at xhigh effort.
+- **Round 5 (section 12) is complete.** The judge passed 714 of 714 tests at superproject commit `6755ed4` (testsuite `937c53a`, server `775ddec`), in one run of `round.sh` with the tester at xhigh effort. One 2-minute implementer run made the tester's 54 failing tests pass. The attack found nothing new; it added worked scenarios for edits and a model-based test in `testsuite/` (four seeds of 360 random edits, checked against the tester's own model of sections 11 and 12), which guard this code before section 13 changes it.
+- **Round 6 (section 13) is next.** Its task must say that `DELETE` on a category returned 405 until now.
 
 ## How to run a round
 
@@ -70,6 +71,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 2 | not tracked | | | | | |
 | 3 | 3 / 1 | 178 | 215,018 | 8,346,360 | 541,687 | 10.30 |
 | 4 | 2 / 1 | 104 | 107,650 | 3,864,488 | 322,560 | 5.51 |
+| 5 | 2 / 1 | 148 | 195,078 | 10,011,759 | 503,208 | 9.93 |
 
 ## The rounds
 
