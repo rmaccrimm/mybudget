@@ -10,6 +10,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 3 (sections 8 to 10) is complete.** The judge passed 563 of 563 tests at superproject commit `7c2b566` (testsuite `efa5c08`, server `4d88767`). It took two runs. The first stopped on an implementer question (ruled in 9.3), and in it neither agent could use Bash, because Claude Code 2.1.325 stopped auto-allowing sandboxed Bash in `dontAsk` mode; `roles/*.json` now set `autoAllowBashIfSandboxed`, and `lane.sh` lists any denied tool calls. The implementer's one run, written without compiling, passed every test. The tester's attack added 19 tests where features meet (splits becoming transfers, moving a transfer's other half) and found nothing new.
 - **Round 4 (section 11) is complete.** The judge passed 640 of 640 tests at superproject commit `e3575ff` (testsuite `b70fea3`, server `928d991`), in one run of `round.sh`: one implementer run made the tester's 67 failing tests pass, and the attack (lines from unapproved transactions, the ends of the date range, edited transfer halves) found nothing new. Section 11 was pasted with credit accounts left unspecified until section 12.
 - **Round 5 (section 12) is complete.** The judge passed 714 of 714 tests at superproject commit `6755ed4` (testsuite `937c53a`, server `775ddec`), in one run of `round.sh` with the tester at xhigh effort. One 2-minute implementer run made the tester's 54 failing tests pass. The attack found nothing new; it added worked scenarios for edits and a model-based test in `testsuite/` (four seeds of 360 random edits, checked against the tester's own model of sections 11 and 12), which guard this code before section 13 changes it.
+- **Refactor round 1 is complete.** A code review found the server hand-rolling what axum, serde and `indexmap` provide, and repeating rules in several places. `roles/implementer.md` gained a "How the code should look" section, and `round.sh` gained `START=implementer` for rounds with no new tests first. With the brief in `spec/refactor-1.md`, the implementer moved the server to axum's `Router`, serde views, `IndexMap` storage and a `Month` type in one run (a first run hit a usage limit). The judge passed 714 of 714; the tester's attack found nothing new and asked about query decoding, ruled in 3.5. A final judge run passed 717 of 717 at superproject commit `b7694c5` (testsuite `de71230`, server `ece59d4`).
 - **Round 6 (section 13) is next.** Its task must say that `DELETE` on a category returned 405 until now.
 
 ## How to run a round
@@ -75,6 +76,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 3 | 3 / 1 | 178 | 215,018 | 8,346,360 | 541,687 | 10.30 |
 | 4 | 2 / 1 | 104 | 107,650 | 3,864,488 | 322,560 | 5.51 |
 | 5 | 2 / 1 | 148 | 195,078 | 10,011,759 | 503,208 | 9.93 |
+| refactor-1 | 1 / 2 | 184 | 174,767 | 12,087,108 | 483,818 | 9.78 |
 
 ## The rounds
 
