@@ -62,6 +62,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 8.6, 9.3 | A `PATCH` to the tracking half of an on-budget/tracking transfer that leaves `category_id` out keeps the on-budget half's category, even when the other half moves to another on-budget account; with no on-budget half before, it needs a `category_id`. (Implementer question, round 3.) |
 | This file's commit | 11 | Changes made before round 4, not rulings: until section 12, what a plan with a credit account shows in its months isn't specified, and 11's references to 12.3 to 12.5 point at section 12; `assigned` is an amount and not nullable (11.2); an example for `GET` on a category's month (11.3); the month's `categories` go group by group (11.6). |
 | This file's commit | 11, 12 | Changes made before round 5, not rulings: section 11's references point back at 12.3 to 12.5 and its intro no longer leaves credit months unspecified; 12.7's example says Groceries is the plan's only user category. |
+| This file's commit | 3.5, 8.5 | Clients never percent-encode query parameters either, so decoding them (and `+`) is unspecified. A repeated query parameter has each value checked, so any invalid one returns 400, and the last counts. (Tester question, refactor round 1.) |
 
 ## Token usage
 

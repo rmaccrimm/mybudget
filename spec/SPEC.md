@@ -55,7 +55,7 @@ GET /no-such-path
 
 When more than one applies, the first of `405`, `404`, `400`, `409` wins. What the server does with a request that isn't valid HTTP, such as one with `Content-Length: abc`, isn't specified.
 
-3.5 Ids are strings that the server generates, made only of ASCII letters, digits, `-` and `_`, so they go into paths as they are. Clients never percent-encode a path, and what the server does with one that is percent-encoded isn't specified. An id is unique across the server and is never reused, even after the thing it named is deleted. Examples show ids as capitalised placeholders such as `"PLAN_ID"`; within one example, the same placeholder is the same id.
+3.5 Ids are strings that the server generates, made only of ASCII letters, digits, `-` and `_`, so they go into paths as they are. Clients never percent-encode a path or a query parameter, and what the server does with one that is percent-encoded, or with a `+` in a query, isn't specified. When a query parameter appears more than once, each value is checked as if it were the only one, so any invalid value returns 400, and the last value counts. An id is unique across the server and is never reused, even after the thing it named is deleted. Examples show ids as capitalised placeholders such as `"PLAN_ID"`; within one example, the same placeholder is the same id.
 
 3.6 A response object has every field its examples show. A field with no value is `null`, never left out. Responses may carry fields this spec doesn't mention. Request fields an endpoint doesn't define are ignored, and so are query parameters it doesn't define. A request field the endpoint does define is checked whenever it's present, even when another field leaves its value unused: an invalid value returns 400.
 
