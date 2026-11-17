@@ -552,4 +552,32 @@ GET /plans/PLAN_ID/months/2026-11
 
 Visa now owes 320.00 and its payment category holds 270.00: the 50.00 of October's credit overspending is new debt, not a deduction from Ready to Assign.
 
-<!-- Next: section 13 (deleting categories). The plan and draft text for every later round are in spec/ROADMAP.md. -->
+## 13. Deleting categories
+
+13.1 `DELETE /plans/{plan_id}/categories/{category_id}` deletes a user category. Deleting a payment category returns 400: it goes only with its account (5.9). `ready_to_assign` isn't a category here: that path returns 404 (7.7).
+
+13.2 If any transaction or subtransaction has the category, as Dining does in 11.8, the request needs the query parameter `reassign_to`; without it, it returns 409. Otherwise `reassign_to` is optional. Whenever it's present, it must be the id of one of the plan's user categories other than the one being deleted, or the request returns 400 (3.6). `ready_to_assign` and payment categories aren't allowed.
+
+```
+DELETE /plans/PLAN_ID/categories/DINING_ID
+→ 409
+{"error": "category is in use"}
+```
+
+13.3 With `reassign_to`, every transaction and subtransaction that had the deleted category gets the `reassign_to` category, and for every month the deleted category's `assigned` is added to that category's, whether or not the deleted category was in use. Nothing else about those transactions changes. Without `reassign_to`, the deleted category's assigned amounts are dropped, which returns them to Ready to Assign.
+
+```
+DELETE /plans/PLAN_ID/categories/DINING_ID?reassign_to=GROCERIES_ID
+→ 204
+
+GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
+→ 200
+{"category_id": "GROCERIES_ID", "assigned": 450000, "activity": -200000, "available": 250000,
+ "cash_overspending": 0, "credit_overspending": 0}
+```
+
+(Applied to 11.8, November's `cash_overspending_last_month` becomes 0 and its `ready_to_assign` 150000.)
+
+13.4 Once deleted, the category no longer exists: its paths, its month entries included, return 404, and a body field or `reassign_to` naming it returns 400. It's left out of 7.1's lists, its group's `categories`, and every month's `categories`. The other categories keep their order.
+
+<!-- Next: section 14 (reconciliation). The plan and draft text for every later round are in spec/ROADMAP.md. -->

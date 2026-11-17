@@ -64,6 +64,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 11 | Changes made before round 4, not rulings: until section 12, what a plan with a credit account shows in its months isn't specified, and 11's references to 12.3 to 12.5 point at section 12; `assigned` is an amount and not nullable (11.2); an example for `GET` on a category's month (11.3); the month's `categories` go group by group (11.6). |
 | This file's commit | 11, 12 | Changes made before round 5, not rulings: section 11's references point back at 12.3 to 12.5 and its intro no longer leaves credit months unspecified; 12.7's example says Groceries is the plan's only user category. |
 | This file's commit | 3.5, 8.5 | Clients never percent-encode query parameters either, so decoding them (and `+`) is unspecified. A repeated query parameter has each value checked, so any invalid one returns 400, and the last counts. (Tester question, refactor round 1.) |
+| This file's commit | 13 | Changes made before round 6, not rulings: `DELETE` returns 204 (3.3); `reassign_to` is checked whenever present and can't be the deleted category, `ready_to_assign` or a payment category; assigned amounts move to `reassign_to` even when the category wasn't in use; an example of the 409; 13.4 says what a deleted category looks like afterwards. |
 
 ## Token usage
 
@@ -162,31 +163,11 @@ The numbers in the examples in 11.8, 12.7, 13.3, 17.2 and 18.3 were checked agai
 
 The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. The recurrence dates in 16.4 and 16.5 were generated the same way.
 
-## Appendix: draft sections 13 to 18
+## Appendix: draft sections 14 to 18
 
 Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them. Sections 17 and 18 wait for the open questions above.
 
 ````markdown
-## 13. Deleting categories
-
-13.1 `DELETE /plans/{plan_id}/categories/{category_id}` deletes a user category. Deleting a payment category returns 400.
-
-13.2 If any transaction or subtransaction has the category, the request needs the query parameter `reassign_to`; without it, it returns 409. `reassign_to` must be the id of another of the plan's user categories, or the request returns 400.
-
-13.3 With `reassign_to`, every transaction and subtransaction that had the deleted category gets the `reassign_to` category, and for every month the deleted category's `assigned` is added to that category's. Without it, the deleted category's assigned amounts are dropped, which returns them to Ready to Assign.
-
-```
-DELETE /plans/PLAN_ID/categories/DINING_ID?reassign_to=GROCERIES_ID
-→ 204
-
-GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
-→ 200
-{"category_id": "GROCERIES_ID", "assigned": 450000, "activity": -200000, "available": 250000,
- "cash_overspending": 0, "credit_overspending": 0}
-```
-
-(Applied to 11.8, November's `cash_overspending_last_month` becomes 0 and its `ready_to_assign` 150000.)
-
 ## 14. Reconciliation
 
 14.1 `POST /plans/{plan_id}/accounts/{account_id}/reconcile` with `balance`, an amount, and `date` reconciles the account to the cleared balance its bank reports. It returns the account and the adjustment it made, or `null` if it made none.
