@@ -9,7 +9,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 2 (sections 5 to 7) is complete.** The judge passed 333 of 333 tests at superproject commit `a565335` (testsuite `c105a26`, server `ff57440`). It took three runs: one tester question (the 3.6/5.2 ruling below), one implementer run that passed every test at once, and one rerun after a usage limit cut the first attack off. The implementer replaced serde_json with its own parser (`server/src/json.rs`) to tell `-0` from `-0.0`.
 - **Round 3 (sections 8 to 10) is complete.** The judge passed 563 of 563 tests at superproject commit `7c2b566` (testsuite `efa5c08`, server `4d88767`). It took two runs. The first stopped on an implementer question (ruled in 9.3), and in it neither agent could use Bash, because Claude Code 2.1.325 stopped auto-allowing sandboxed Bash in `dontAsk` mode; `roles/*.json` now set `autoAllowBashIfSandboxed`, and `lane.sh` lists any denied tool calls. The implementer's one run, written without compiling, passed every test. The tester's attack added 19 tests where features meet (splits becoming transfers, moving a transfer's other half) and found nothing new.
 - **Round 4 (section 11) is complete.** The judge passed 640 of 640 tests at superproject commit `e3575ff` (testsuite `b70fea3`, server `928d991`), in one run of `round.sh`: one implementer run made the tester's 67 failing tests pass, and the attack (lines from unapproved transactions, the ends of the date range, edited transfer halves) found nothing new. Section 11 was pasted with credit accounts left unspecified until section 12.
-- **Round 5 (section 12) is next.** See its notes in the table below: section 11's references to section 12 need pointing back at 12.3 to 12.5.
+- **Round 5 (section 12) is running.** Section 12 is in `SPEC.md`, and section 11 covers credit accounts again. It's the first round with the tester at xhigh effort.
 
 ## How to run a round
 
@@ -58,6 +58,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 8 to 10 | Changes made before round 3, not rulings: context for 8.5's example; in a `PATCH` the payee changes only when `payee_id` is present or `payee_name` is a string, and a left-out `category_id` becomes `null` when the result can't have one (8.6); a subtransaction's `category_id` is required (10.1); a split made ordinary again needs a category in the same request (10.4); wording in 9.2, 9.3 and 9.5. |
 | This file's commit | 8.6, 9.3 | A `PATCH` to the tracking half of an on-budget/tracking transfer that leaves `category_id` out keeps the on-budget half's category, even when the other half moves to another on-budget account; with no on-budget half before, it needs a `category_id`. (Implementer question, round 3.) |
 | This file's commit | 11 | Changes made before round 4, not rulings: until section 12, what a plan with a credit account shows in its months isn't specified, and 11's references to 12.3 to 12.5 point at section 12; `assigned` is an amount and not nullable (11.2); an example for `GET` on a category's month (11.3); the month's `categories` go group by group (11.6). |
+| This file's commit | 11, 12 | Changes made before round 5, not rulings: section 11's references point back at 12.3 to 12.5 and its intro no longer leaves credit months unspecified; 12.7's example says Groceries is the plan's only user category. |
 
 ## Token usage
 
@@ -154,55 +155,11 @@ The numbers in the examples in 11.8, 12.7, 13.3, 17.2 and 18.3 were checked agai
 
 The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. The recurrence dates in 16.4 and 16.5 were generated the same way.
 
-## Appendix: draft sections 12 to 18
+## Appendix: draft sections 13 to 18
 
 Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them. Sections 17 and 18 wait for the open questions above.
 
 ````markdown
-## 12. Credit cards
-
-When you spend on a credit card from a category that has the money, that money moves to the card's payment category, ready to pay the bill. Spending beyond what the category has becomes debt instead.
-
-12.1 A payment category's month entry follows 11.2 to 11.5, with its `activity` from 12.4 and a `credit_overspending` of 0.
-
-12.2 For a user category C in a month, and each credit account K, let net(K) be the sum of the amounts of the month's lines in K with category C. K's spending is max(0, -net(K)) and its refund is max(0, net(K)). C's funds are its carryover (11.4) + its `assigned` + the amounts of the month's lines in cash accounts with category C + all the credit accounts' refunds. The funded amount is the smaller of the total spending and max(0, funds). It goes to the credit accounts in the order they were created, each taking the smaller of its spending and what is left.
-
-12.3 C's `credit_overspending` is its total spending minus its funded amount. (Its `cash_overspending` then works out as max(0, -funds): cash spending uses a category's money first.)
-
-12.4 A payment category's `activity` for a month is, for its account K: the amounts funded to K (12.2) from every user category, minus K's refunds in every user category, minus the payments into K (12.5).
-
-12.5 In a transfer between a cash account and a credit account, the credit account's half decides what happens. A positive half is a payment: its amount comes off the payment category (12.4). A negative half is a cash advance: its size counts in the month's `cash_advances`, so it adds to Ready to Assign.
-
-12.6 Lines in a credit account categorized to `ready_to_assign`, and transfers between two credit accounts or between two cash accounts, change no category and don't change Ready to Assign.
-
-12.7 Example. Checking starts with 1000.00 and Visa (a credit card) with -200.00, both on 2026-10-01; Visa's starting balance changes nothing in the plan (12.6). October assigns 300.00 to Groceries and 200.00 to Visa's payment category. Visa spends 100.00 on Groceries on 2026-10-05 and 250.00 on 2026-10-09. Checking pays Visa 200.00 on 2026-10-20 (a transfer). On 2026-11-03, Visa gets a 30.00 refund categorized to Groceries.
-
-```
-GET /plans/PLAN_ID/months/2026-10
-→ 200
-{"month": "2026-10", "income": 1000000, "cash_advances": 0, "assigned": 500000,
- "activity": -350000, "cash_overspending_last_month": 0, "left_over_from_last_month": 0,
- "assigned_in_future": 0, "ready_to_assign": 500000,
- "categories": [
-  {"category_id": "VISA_PAYMENT_ID", "assigned": 200000, "activity": 100000, "available": 300000,
-   "cash_overspending": 0, "credit_overspending": 0},
-  {"category_id": "GROCERIES_ID", "assigned": 300000, "activity": -350000, "available": -50000,
-   "cash_overspending": 0, "credit_overspending": 50000}]}
-
-GET /plans/PLAN_ID/months/2026-11
-→ 200
-{"month": "2026-11", "income": 0, "cash_advances": 0, "assigned": 0,
- "activity": 30000, "cash_overspending_last_month": 0, "left_over_from_last_month": 500000,
- "assigned_in_future": 0, "ready_to_assign": 500000,
- "categories": [
-  {"category_id": "VISA_PAYMENT_ID", "assigned": 0, "activity": -30000, "available": 270000,
-   "cash_overspending": 0, "credit_overspending": 0},
-  {"category_id": "GROCERIES_ID", "assigned": 0, "activity": 30000, "available": 30000,
-   "cash_overspending": 0, "credit_overspending": 0}]}
-```
-
-Visa now owes 320.00 and its payment category holds 270.00: the 50.00 of October's credit overspending is new debt, not a deduction from Ready to Assign.
-
 ## 13. Deleting categories
 
 13.1 `DELETE /plans/{plan_id}/categories/{category_id}` deletes a user category. Deleting a payment category returns 400.

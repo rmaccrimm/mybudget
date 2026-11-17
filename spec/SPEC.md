@@ -432,7 +432,7 @@ POST /plans/PLAN_ID/transactions
 
 ## 11. Months and Ready to Assign
 
-Every month, the plan's money is either assigned to categories or Ready to Assign. This section covers plans whose on-budget accounts are all cash accounts. Section 12, still to come, adds credit accounts; until it does, what the months of a plan with a credit account show isn't specified, in particular `cash_advances`, `credit_overspending` and a payment category's entry.
+Every month, the plan's money is either assigned to categories or Ready to Assign. This section covers cash accounts; section 12 adds credit accounts.
 
 11.1 A line is a transaction in an on-budget account that isn't a split, or one subtransaction of a split in an on-budget account. A line has its transaction's account and date. Only lines affect the plan; transactions in tracking accounts never do.
 
@@ -446,7 +446,7 @@ PATCH /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
  "cash_overspending": 0, "credit_overspending": 0}
 ```
 
-11.3 `GET /plans/{plan_id}/months/{month}/categories/{category_id}` returns a category's month entry. `activity` is the sum of the amounts of the month's lines with that category (a payment category's activity comes with section 12); `available` is in 11.4, and the overspending fields in 11.5. After 11.2's `PATCH`, in a plan with no transactions:
+11.3 `GET /plans/{plan_id}/months/{month}/categories/{category_id}` returns a category's month entry. `activity` is the sum of the amounts of the month's lines with that category (a payment category's activity is in 12.4); `available` is in 11.4, and the overspending fields in 11.5. After 11.2's `PATCH`, in a plan with no transactions:
 
 ```
 GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
@@ -457,12 +457,12 @@ GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
 
 11.4 `available` = carryover + `assigned` + `activity`, where carryover is the previous month's `available` if that is positive, and 0 otherwise. Money left in a category rolls into the next month, and an overspent category starts the next month at 0. Before `1900-01` everything is 0.
 
-11.5 A category is overspent when its `available` is negative. `credit_overspending` is the part spent on credit (section 12); it is 0 for a category with no spending in credit accounts that month. `cash_overspending` is the rest: max(0, -`available`) - `credit_overspending`.
+11.5 A category is overspent when its `available` is negative. `credit_overspending` is the part spent on credit (12.3); it is 0 for a category with no spending in credit accounts that month. `cash_overspending` is the rest: max(0, -`available`) - `credit_overspending`.
 
 11.6 `GET /plans/{plan_id}/months/{month}` returns the month:
 
 - `income`: the sum of the amounts of the month's lines in cash accounts categorized to `ready_to_assign`.
-- `cash_advances`: 0 without credit accounts (section 12).
+- `cash_advances`: see 12.5; 0 without credit accounts.
 - `assigned`: the sum of every category's `assigned` for the month.
 - `activity`: the sum of every user category's `activity` for the month.
 - `cash_overspending_last_month`: the sum of every category's `cash_overspending` in the previous month.
@@ -508,4 +508,48 @@ GET /plans/PLAN_ID/months/2026-11
    "cash_overspending": 0, "credit_overspending": 0}]}
 ```
 
-<!-- Next: section 12 (credit cards). The plan and draft text for every later round are in spec/ROADMAP.md. -->
+## 12. Credit cards
+
+When you spend on a credit card from a category that has the money, that money moves to the card's payment category, ready to pay the bill. Spending beyond what the category has becomes debt instead.
+
+12.1 A payment category's month entry follows 11.2 to 11.5, with its `activity` from 12.4 and a `credit_overspending` of 0.
+
+12.2 For a user category C in a month, and each credit account K, let net(K) be the sum of the amounts of the month's lines in K with category C. K's spending is max(0, -net(K)) and its refund is max(0, net(K)). C's funds are its carryover (11.4) + its `assigned` + the amounts of the month's lines in cash accounts with category C + all the credit accounts' refunds. The funded amount is the smaller of the total spending and max(0, funds). It goes to the credit accounts in the order they were created, each taking the smaller of its spending and what is left.
+
+12.3 C's `credit_overspending` is its total spending minus its funded amount. (Its `cash_overspending` then works out as max(0, -funds): cash spending uses a category's money first.)
+
+12.4 A payment category's `activity` for a month is, for its account K: the amounts funded to K (12.2) from every user category, minus K's refunds in every user category, minus the payments into K (12.5).
+
+12.5 In a transfer between a cash account and a credit account, the credit account's half decides what happens. A positive half is a payment: its amount comes off the payment category (12.4). A negative half is a cash advance: its size counts in the month's `cash_advances`, so it adds to Ready to Assign.
+
+12.6 Lines in a credit account categorized to `ready_to_assign`, and transfers between two credit accounts or between two cash accounts, change no category and don't change Ready to Assign.
+
+12.7 Example. Checking starts with 1000.00 and Visa (a credit card) with -200.00, both on 2026-10-01, and Groceries is the plan's only user category; Visa's starting balance changes nothing in the plan (12.6). October assigns 300.00 to Groceries and 200.00 to Visa's payment category. Visa spends 100.00 on Groceries on 2026-10-05 and 250.00 on 2026-10-09. Checking pays Visa 200.00 on 2026-10-20 (a transfer). On 2026-11-03, Visa gets a 30.00 refund categorized to Groceries.
+
+```
+GET /plans/PLAN_ID/months/2026-10
+→ 200
+{"month": "2026-10", "income": 1000000, "cash_advances": 0, "assigned": 500000,
+ "activity": -350000, "cash_overspending_last_month": 0, "left_over_from_last_month": 0,
+ "assigned_in_future": 0, "ready_to_assign": 500000,
+ "categories": [
+  {"category_id": "VISA_PAYMENT_ID", "assigned": 200000, "activity": 100000, "available": 300000,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "GROCERIES_ID", "assigned": 300000, "activity": -350000, "available": -50000,
+   "cash_overspending": 0, "credit_overspending": 50000}]}
+
+GET /plans/PLAN_ID/months/2026-11
+→ 200
+{"month": "2026-11", "income": 0, "cash_advances": 0, "assigned": 0,
+ "activity": 30000, "cash_overspending_last_month": 0, "left_over_from_last_month": 500000,
+ "assigned_in_future": 0, "ready_to_assign": 500000,
+ "categories": [
+  {"category_id": "VISA_PAYMENT_ID", "assigned": 0, "activity": -30000, "available": 270000,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "GROCERIES_ID", "assigned": 0, "activity": 30000, "available": 30000,
+   "cash_overspending": 0, "credit_overspending": 0}]}
+```
+
+Visa now owes 320.00 and its payment category holds 270.00: the 50.00 of October's credit overspending is new debt, not a deduction from Ready to Assign.
+
+<!-- Next: section 13 (deleting categories). The plan and draft text for every later round are in spec/ROADMAP.md. -->
