@@ -10,7 +10,7 @@
 # Usage: scripts/lane.sh <tester|implementer> "<prompt>"
 # The session's final message is saved to $MYBUDGET_CACHE/<role>/last-output.md.
 # Token usage is appended to $MYBUDGET_CACHE/usage.jsonl, labelled with $MYBUDGET_ROUND.
-# Set MYBUDGET_MODEL to choose the model.
+# Set MYBUDGET_MODEL to choose the model. A role's effort is roles/<role>.json's effortLevel.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -43,6 +43,10 @@ sed -e "s|@ROOT@|$ROOT|g" -e "s|@CACHE@|$CACHE|g" "$ROOT/roles/$role.json" >"$st
 
 extra=()
 if [[ -n "${MYBUDGET_MODEL:-}" ]]; then extra+=(--model "$MYBUDGET_MODEL"); fi
+# A role's effortLevel goes on the command line too, so it beats any per-model effort
+# in the human's own settings. Without one, the session uses the human's default.
+effort="$(jq -r '.effortLevel // empty' "$state/settings.json")"
+if [[ -n "$effort" ]]; then extra+=(--effort "$effort"); fi
 
 before="$(heads)"
 status=0
@@ -64,8 +68,8 @@ cat "$state/last-output.md"
 
 # One line per run in $CACHE/usage.jsonl, written before the lane checks so failed runs count too.
 # scripts/usage.sh sums it by round (MYBUDGET_ROUND, set by round.sh) and role.
-jq -c --arg round "${MYBUDGET_ROUND:-}" --arg role "$role" --argjson status "$status" '{
-    time: (now | todate), round: $round, role: $role, status: $status,
+jq -c --arg round "${MYBUDGET_ROUND:-}" --arg role "$role" --arg effort "${effort:-default}" --argjson status "$status" '{
+    time: (now | todate), round: $round, role: $role, effort: $effort, status: $status,
     turns: .num_turns, denials: (.permission_denials | length), minutes: (.duration_ms / 60000 | round), cost_usd: .total_cost_usd,
     input:       ([.modelUsage[].inputTokens] | add),
     output:      ([.modelUsage[].outputTokens] | add),
