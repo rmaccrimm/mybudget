@@ -49,7 +49,7 @@ GET /no-such-path
 
 3.1 Request and response bodies are JSON (UTF-8), except the body of `GET /health`'s `200` response. A response with a JSON body has the header `Content-Type: application/json`. Every `POST` and `PATCH` takes a JSON object as its body, and clients send it with `Content-Type: application/json`; a missing or empty body isn't valid JSON (3.4). Every string in a body must be Unicode text, so one with an escaped lone surrogate, such as `"a\ud800b"`, makes the body invalid JSON too.
 
-3.2 Every `400`, `404`, `405`, `409` and `413` response, including the `404` in 2.2, has a JSON body whose `error` field is a non-empty string. Its wording isn't specified: the messages in examples are only illustrations. A response to `HEAD` never has a body, as HTTP requires.
+3.2 Every `400`, `404`, `405`, `409`, `413` and `500` response, including the `404` in 2.2, has a JSON body whose `error` field is a non-empty string. Its wording isn't specified: the messages in examples are only illustrations. A response to `HEAD` never has a body, as HTTP requires.
 
 ```
 GET /no-such-path
@@ -65,10 +65,11 @@ GET /no-such-path
 - `404`: the path names something that doesn't exist.
 - `405`: the path is one this spec defines, but not for that method. `HEAD` is defined wherever `GET` is, and gets the `GET` response without its body.
 - `409`: the request is valid but conflicts with the current data, such as a name that's taken or deleting something still in use.
+- `500`: the request is valid, but the server couldn't save the change (15.10).
 
-When more than one applies, the first of `405`, `404`, `400`, `409` wins. What the server does with a request that isn't valid HTTP, such as one with `Content-Length: abc`, isn't specified.
+When more than one applies, the first of `405`, `404`, `400`, `409` wins; `500` comes only after all of them are ruled out. What the server does with a request that isn't valid HTTP, such as one with `Content-Length: abc`, isn't specified.
 
-3.5 Ids are strings that the server generates, made only of ASCII letters, digits, `-` and `_`, so they go into paths as they are. Clients never percent-encode a path or a query parameter, and what the server does with one that is percent-encoded, or with a `+` in a query, isn't specified. When a query parameter appears more than once, each value is checked as if it were the only one, so any invalid value returns 400, and the last value counts. An id is unique across the server and is never reused, even after the thing it named is deleted. Examples show ids as capitalised placeholders such as `"PLAN_ID"`; within one example, the same placeholder is the same id.
+3.5 Ids are random (version 4) UUIDs that the server generates, written in lowercase with hyphens, such as `3f9a2c1e-7b4d-4e8a-9c2f-1d6b5a8e0f37`, so they go into paths as they are. Clients never percent-encode a path or a query parameter, and what the server does with one that is percent-encoded, or with a `+` in a query, isn't specified. When a query parameter appears more than once, each value is checked as if it were the only one, so any invalid value returns 400, and the last value counts. An id is never reused, even after the thing it named is deleted, and ids made by different servers don't collide, so a plan's file can move between them (section 15). Examples show ids as capitalised placeholders such as `"PLAN_ID"`; within one example, the same placeholder is the same id.
 
 3.6 A response object has every field its examples show. A field with no value is `null`, never left out. Responses may carry fields this spec doesn't mention. Request fields an endpoint doesn't define are ignored, and so are query parameters it doesn't define. A request field the endpoint does define is checked whenever it's present, even when another field leaves its value unused: an invalid value returns 400.
 
@@ -593,4 +594,60 @@ GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
 
 13.4 Once deleted, the category no longer exists: its paths, its month entries included, return 404, and a body field or `reassign_to` naming it returns 400. It's left out of 7.1's lists, its group's `categories`, and every month's `categories`. The other categories keep their order.
 
-<!-- Next: section 14 (reconciliation). The plan and draft text for every later round are in spec/ROADMAP.md. -->
+## 15. Persistence
+
+Without `MYBUDGET_DATA`, the server keeps its data only in memory, as the earlier sections assume. This section covers the server with it set.
+
+15.1 `MYBUDGET_DATA`, when it is set and not empty, names a directory, relative to the server's working directory if it's a relative path. The server creates it, with any missing parents, if it doesn't exist. If it can't, or can't read and write files there, the server writes a message to stderr and exits with a non-zero status, without printing 1.3's line.
+
+15.2 Each plan is kept in its own SQLite database file in that directory. The file's name is the plan's safe name (15.3) followed by `.sqlite`, such as `Household.sqlite`. If a file of that name already exists, or the file system treats the name as the same as an existing file's (case-insensitive file systems ignore letter case), the server puts a space and the first 8 characters of the plan's id in parentheses before `.sqlite`: `Household (3f9a2c1e).sqlite`. The server never overwrites a file it didn't create for that plan.
+
+15.3 A plan's safe name is its name with these steps applied in order:
+
+- Each control character (U+0000 to U+001F, and U+007F) and each of `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>` and `|` becomes `_`.
+- If the result is longer than 200 bytes in UTF-8, it's cut to the longest run of whole characters from its start that fits.
+- Any mix of white space (Unicode `White_Space`) and `.` is removed from both ends.
+- If nothing is left, the safe name is `Plan`.
+
+```
+"Household"         → Household.sqlite
+"Bills/Rent: 2027"  → Bills_Rent_ 2027.sqlite
+" .hidden. "        → hidden.sqlite
+"..."               → Plan.sqlite
+```
+
+15.4 When a plan's name changes (4.3), its file is renamed as 15.2 names it, except that the plan's own file never counts as a clash: renaming `Household` to `household` gives `household.sqlite`. If the new safe name is exactly the old one, the file keeps its name, suffix included. Deleting a plan (4.4) deletes its file.
+
+15.5 A server started on a directory serves the plans in every file there whose name ends in `.sqlite`, and ignores other files. It serves the same data the earlier server did: the same ids, values and list orders. 4.2's "oldest first" uses a creation time kept in each plan's file. A change is saved before the response to the request that made it, so it survives the server being killed (`SIGKILL`) at any point afterwards.
+
+```
+(server started with MYBUDGET_DATA=<dir>)
+POST /plans
+{"name": "Household"}
+→ 201
+{"id": "PLAN_ID", "name": "Household", "currency_code": "USD"}
+
+(<dir> now holds Household.sqlite; the server is killed, then started again with the same MYBUDGET_DATA)
+GET /plans
+→ 200
+[{"id": "PLAN_ID", "name": "Household", "currency_code": "USD"}]
+```
+
+15.6 Between requests, each plan's file is a complete database on its own: no `-journal`, `-wal` or `-shm` file is left beside it.
+
+15.7 At startup, a `.sqlite` file the server can't use is skipped: the server doesn't serve it or change it, writes a line to stderr naming the file and the reason, and starts as usual. That covers a file that isn't a plan file the server can read, one whose schema version (15.8) is newer than the server knows, and two or more files holding the same plan, as when a file has been copied: all of those are skipped. A skipped file's name still counts as taken (15.2).
+
+15.8 A plan file records its schema version in SQLite's `user_version`. Version 1 holds all the data that sections 1 to 13 define. A later section that adds data to keep says which version holds it and what migrating below that version drops; a section that adds no new kind of data adds no version. At startup the server upgrades every plan file with an older version to its latest before serving it. A file it can't upgrade is skipped (15.7) and left as it was.
+
+15.9 `mybudget-server migrate <file> <version>` changes a plan file to that schema version, older or newer, and exits with status 0 without listening or reading `MYBUDGET_DATA`. Going down drops only what the older version can't hold, as the section that added it says, and going back up then restores everything else exactly. Migrating a file to its own version changes nothing. If the file isn't a plan file, if its version is newer than the server knows, or if `<version>` isn't an integer from 1 to the server's latest version, the command writes a message to stderr, exits with a non-zero status and leaves the file as it was. With no arguments the server serves as section 1 says; what it does with other arguments isn't specified.
+
+```
+$ mybudget-server migrate "<dir>/Household.sqlite" 1
+(exit status 0)
+```
+
+15.10 If the server can't save a change, the request returns `500` and changes nothing, in memory or on disk (3.11).
+
+15.11 The server reads the directory only when it starts. What happens if plan files are added, changed, renamed or removed while it runs, or if two servers use the same directory at once, isn't specified.
+
+<!-- Next: section 14 (reconciliation). Paste it before section 15, so the sections stay in order. The plan and draft text for every later round are in spec/ROADMAP.md. -->

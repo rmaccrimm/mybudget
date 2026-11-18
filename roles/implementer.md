@@ -26,6 +26,7 @@ The server will grow for many more rounds, so passing the tests isn't enough: th
 - **Let types do the work.** Use enums for closed sets of values, deriving serde for their wire names, and newtypes for values with a format, such as months. Look things up by id rather than keeping indexes across changes.
 - **Keep shared mutable state small and in one obvious place.** Today that's the store behind a single lock. Don't use `unsafe` or `Rc<RefCell<…>>`, and don't add another lock or global unless you'd defend it in a review.
 - **Check everything first, then change.** Once a handler has changed anything, it makes no further call that can return an error, because that would leave a half-applied change (SPEC 3.11). Write invariants as `expect("why it holds")`.
+- **A shipped migration never changes.** Each change to what a plan file holds is a new migration in `migrations/`, with an up and a down, and the down drops only what the older version can't hold (SPEC 15.8, 15.9). Never edit or remove a migration from an earlier round; while its own round runs, it may still change.
 - **Keep the code formatted and lint-clean.** Run `cargo fmt` and `cargo clippy --all-targets` before you finish, and leave no warnings.
 - **A refactor changes no behavior.** When the task is a refactor, the judge result must stay exactly as it was.
 

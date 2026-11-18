@@ -14,7 +14,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 6 (section 13) is complete.** The judge passed 766 of 766 tests at superproject commit `032b3c7` (testsuite `f272024`, server `df0a08f`), in one run of `round.sh`. Section 13 was tightened before pasting (see the rulings). One implementer run made the tester's 36 failing tests pass, and the attack (concurrent deletes, credit funding after a merge, transfers and splits whose category moved) found nothing new. The tester reads a bare `?reassign_to` as present with an empty value (400), as its 8.5 tests do for `since_date=`.
 - **Clause 1.4 was added for the macOS app** (`app/`), so the server it bundles exits when the app dies. It's opt-in, through `MYBUDGET_EXIT_ON_STDIN_EOF=1`, because the judge's startup check runs the server with stdin `/dev/null`.
 - **Round app-1 (clause 1.4) is complete.** The judge passed 809 of 809 tests at superproject commit `67a7709` (testsuite `a1ba732`, server `b624e62`), in two runs of `round.sh`. The first run's attack found that the server took an empty read on non-blocking stdin for end of file, and asked whether that was allowed; the ruling says it isn't. The rerun's implementer run fixed it, and the last attack (stdin that never ends, long quiet stretches, a full pipe closed, a parent that exits) found nothing new. `lane.sh` no longer requires a clean `app/` or watches it, because the app session works there during rounds, and it commits only its lane in the superproject.
-- **Round 7 (section 14) is next.**
+- **Persistence was pulled forward (2026-11-18).** The human asked for section 15 before 14, rewritten: one SQLite file per plan, named after the plan, with schema migrations that each have a down and a `migrate` command to run them (see "Decisions the draft makes"). Section 15 is in `SPEC.md`, with changes to 3.2 and 3.4 (a `500` for a failed save) and 3.5 (ids become version 4 UUIDs). Section 14 keeps its number.
+- **Round 7 (section 15) is next**, with the task in `spec/round-7.md`: `MYBUDGET_ROUND=7 caffeinate -i scripts/round.sh "$(cat spec/round-7.md)"`. When it completes, record the checksums of `server/migrations/` so later rounds can't change version 1 (see the plan below).
 
 ## How to run a round
 
@@ -51,6 +52,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 - For each request field: required or optional, nullable or not (3.10), and its format. 3.7 to 3.9 define amounts, dates and names.
 - References to sections that aren't pasted yet: reword them, or keep the tester off them in the task.
 - Behaviour that changes from an earlier round: say so in the task, so the tester updates its older tests. Known cases: section 13 defines `DELETE` on a category (405 until then); 16.6 extends 5.9 and 6.4; section 17 adds `target` to categories and `underfunded` to month entries; section 18 adds `age_of_money` to months.
+- Data to keep: since section 15, a section that adds a new kind of data says which schema version (15.8) holds it and what migrating below that version drops. Its round's task says the new data must persist and migrate both ways. Section 14 adds no new kind of data; section 16's scheduled transactions are the first, as version 2.
 
 ## Rulings so far
 
@@ -70,6 +72,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 13 | Changes made before round 6, not rulings: `DELETE` returns 204 (3.3); `reassign_to` is checked whenever present and can't be the deleted category, `ready_to_assign` or a payment category; assigned amounts move to `reassign_to` even when the category wasn't in use; an example of the 409; 13.4 says what a deleted category looks like afterwards. |
 | This file's commit | 1.4 | Added for the macOS app, not a ruling: with `MYBUDGET_EXIT_ON_STDIN_EOF=1` the server exits when stdin reaches end of file, ignoring anything it reads first. |
 | This file's commit | 1.4 | The server exits only at end of file on stdin: a read that finds nothing waiting (non-blocking stdin) isn't end of file. Other read errors are unspecified. (Tester question, round app-1.) |
+| This file's commit | 3.2, 3.4, 3.5, 15 | Changes made with the human before round 7, not rulings: section 15 rewritten for one SQLite file per plan, migrations and `migrate`; `500` for a failed save; ids become version 4 UUIDs. |
 
 ## Token usage
 
@@ -96,9 +99,9 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 5 | 12 | `SPEC section 12 (credit cards)` | The hardest maths. Check 12.2 to 12.5 and the example in 12.7 before pasting. Section 11 was pasted with credit accounts left unspecified: point 11.3, 11.5 and 11.6 back at 12.4, 12.3 and 12.5, and drop the intro's sentence saying credit months aren't specified. |
 | 6 | 13 | `SPEC section 13 (deleting categories). DELETE on a category returned 405 until now.` | |
 | app-1 | 1.4, already in `SPEC.md` | `SPEC clause 1.4 (exiting when stdin reaches end of file), which is new` | Testing 1.4 needs `Server` to pass env vars and pipe stdin. |
-| 7 | 14 | `SPEC section 14 (reconciliation)` | |
-| 8 | 15 | `SPEC section 15 (persistence)` | The tester will extend `Server` to pass env vars and restart on the same data directory. The judge's per-test scratch folder (`TMPDIR`) is writable. |
-| 9 | 16 | `SPEC section 16 (scheduled transactions)` | Needs 15: a test moves "today" by restarting with a new `MYBUDGET_TODAY`. Tests should always set it. |
+| 7 | 15, already in `SPEC.md` | `spec/round-7.md` (pass its text) | Pulled ahead of 14. The tester extends the harness to restart on the same data directory and to open plan files with `rusqlite`. The judge's per-test scratch folder (`TMPDIR`) is writable. A bundled SQLite builds offline in a sandbox like the judge's (checked 2026-11-18). |
+| 8 | 14 | `SPEC section 14 (reconciliation). Its data persists like the rest (section 15).` | Adds no schema version. Paste it before section 15 in `SPEC.md`, to keep the sections in order. |
+| 9 | 16 | `SPEC section 16 (scheduled transactions)` | Needs 15: a test moves "today" by restarting with a new `MYBUDGET_TODAY`. Tests should always set it. Scheduled transactions are schema version 2, the first with a real down migration: add to 16 what migrating to version 1 drops. |
 | 10 | 17 | `SPEC section 17 (targets)` | Only after the human answers open questions 1 to 3. |
 | 11 | 18 | `SPEC section 18 (age of money)` | Only after the human answers open question 4. |
 
@@ -115,6 +118,12 @@ YNAB doesn't decide these, or doesn't fit an HTTP contract. Keep rulings consist
 - **There's no clock until section 16.** Transactions dated in the future count as soon as they're entered. Section 16 reads today from `MYBUDGET_TODAY`.
 - **`approved` defaults to true** for transactions created through the API. Scheduled transactions are entered with `approved` false, as in YNAB.
 - **Closing an account needs a zero balance**, and deleting one needs it to have no transactions. Deleting a category that's in use needs `reassign_to`.
+- **Persistence (section 15)**, decided with the human on 2026-11-18:
+  - One SQLite file per plan, so single plans can be copied between devices. It's named after the plan, with 8 characters of the plan's id added only when the name clashes. This breaks parity with YNAB, which the human accepted.
+  - Files are copied by hand while the app is closed. The server reads the directory only at startup, and live changes to the files are unspecified.
+  - A plan file the server can't use is skipped with a warning; only an unusable directory stops the server. Two files holding the same plan are both skipped.
+  - Every migration has a down, and `mybudget-server migrate` runs them either way. Some data may be lost between versions.
+  - SQLite is bundled (`rusqlite`), so every device writes files with the same SQLite version.
 
 ## Left out on purpose
 
@@ -171,7 +180,7 @@ The numbers in the examples in 11.8, 12.7, 13.3, 17.2 and 18.3 were checked agai
 
 The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. The recurrence dates in 16.4 and 16.5 were generated the same way.
 
-## Appendix: draft sections 14 to 18
+## Appendix: draft sections 14 and 16 to 18
 
 Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them. Sections 17 and 18 wait for the open questions above.
 
@@ -199,25 +208,6 @@ POST /plans/PLAN_ID/accounts/CHECKING_ID/reconcile
 ```
 
 (Before this, Checking had its 2500.00 starting balance, a cleared -120.00 and an uncleared -35.00.)
-
-## 15. Persistence
-
-15.1 When the environment variable `MYBUDGET_DATA` is set, it names a directory where the server keeps all its data, creating the directory if it doesn't exist. Without it, data lives only in memory and is lost when the server stops.
-
-15.2 A server started with the same `MYBUDGET_DATA` as an earlier one serves the same data: the same ids, values and list orders. A change is saved before the response to the request that made it, so it survives the server being killed (`SIGKILL`) at any point afterwards.
-
-```
-(server started with MYBUDGET_DATA=<dir>)
-POST /plans
-{"name": "Household"}
-→ 201
-{"id": "PLAN_ID", "name": "Household", "currency_code": "USD"}
-
-(server killed, then started again with the same MYBUDGET_DATA)
-GET /plans
-→ 200
-[{"id": "PLAN_ID", "name": "Household", "currency_code": "USD"}]
-```
 
 ## 16. Scheduled transactions
 
