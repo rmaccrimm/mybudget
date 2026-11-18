@@ -24,14 +24,16 @@ case "$role" in
 esac
 [[ -n "$prompt" ]] || { echo "lane.sh: empty prompt" >&2; exit 64; }
 
-SUBMODULES=(app server testsuite)
+# app/ is developed separately, often while a round runs, so lane.sh neither needs it
+# clean nor watches it. The role settings and the OS sandbox still keep agents out of it.
+SUBMODULES=(server testsuite)
 git_() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false "$@"; }
 heads() { local sm; for sm in "${SUBMODULES[@]}"; do echo "$sm $(git_ -C "$ROOT/$sm" rev-parse HEAD)"; done; }
 
 # Start clean, so every change after the run is the agent's.
-if [[ -n "$(git_ -C "$ROOT" status --porcelain)" ]]; then
+if [[ -n "$(git_ -C "$ROOT" -c submodule.app.ignore=all status --porcelain)" ]]; then
   echo "lane.sh: commit or stash your changes first:" >&2
-  git_ -C "$ROOT" status --short >&2
+  git_ -C "$ROOT" -c submodule.app.ignore=all status --short >&2
   exit 1
 fi
 
@@ -111,5 +113,6 @@ subject="$role: $(head -n 1 <<<"$prompt" | cut -c 1-60)"
 git_ -C "$ROOT/$lane" add -A
 git_ -C "$ROOT/$lane" commit -q -m "$subject"
 git_ -C "$ROOT" add "$lane"
-git_ -C "$ROOT" commit -q -m "$subject"
+# Commit only the lane, so nothing someone else staged in the superproject goes with it.
+git_ -C "$ROOT" commit -q -m "$subject" -- "$lane"
 echo "lane.sh: committed $lane@$(git_ -C "$ROOT/$lane" rev-parse --short HEAD)"
