@@ -9,7 +9,7 @@ Server work goes through two agents, each run by `scripts/lane.sh` in its own sa
 - **tester**: writes tests in `testsuite/` from `spec/SPEC.md`. Can't write anywhere else.
 - **implementer**: writes `server/`. Can't write anywhere else, and can't read `testsuite/` at all. It only learns which spec clauses fail.
 
-`spec/SPEC.md` is the contract. `spec/` is edited by humans or by the session running the rounds, never by the tester or implementer. `roles/` and the app are edited by humans only. `scripts/judge.sh` builds and tests the committed code in a macOS sandbox, and its result is the one that counts.
+`spec/SPEC.md` is the contract. `spec/` is edited by humans or by the session running the rounds, never by the tester or implementer. `roles/` and `app/` are edited by humans or their own sessions, never by the tester or implementer. `scripts/judge.sh` builds and tests the committed code in a macOS sandbox, and its result is the one that counts.
 
 Each test in `testsuite/tests/` is named after the clause it checks: `spec_3_2_...` checks SPEC 3.2.
 
