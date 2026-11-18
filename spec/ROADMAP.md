@@ -68,6 +68,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 3.5, 8.5 | Clients never percent-encode query parameters either, so decoding them (and `+`) is unspecified. A repeated query parameter has each value checked, so any invalid one returns 400, and the last counts. (Tester question, refactor round 1.) |
 | This file's commit | 13 | Changes made before round 6, not rulings: `DELETE` returns 204 (3.3); `reassign_to` is checked whenever present and can't be the deleted category, `ready_to_assign` or a payment category; assigned amounts move to `reassign_to` even when the category wasn't in use; an example of the 409; 13.4 says what a deleted category looks like afterwards. |
 | This file's commit | 1.4 | Added for the macOS app, not a ruling: with `MYBUDGET_EXIT_ON_STDIN_EOF=1` the server exits when stdin reaches end of file, ignoring anything it reads first. |
+| This file's commit | 1.4 | The server exits only at end of file on stdin: a read that finds nothing waiting (non-blocking stdin) isn't end of file. Other read errors are unspecified. (Tester question, round app-1.) |
 
 ## Token usage
 
