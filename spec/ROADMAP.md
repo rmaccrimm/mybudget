@@ -2,7 +2,7 @@
 
 This is for the agent that resumes the work. The goal is a server that replicates YNAB's core budgeting, specified in `SPEC.md` and built one round at a time by the tester and implementer (see `README.md` for how rounds work). Sections 3 to 18 were drafted together from research into YNAB; this file holds the plan for the rounds still to run, the rules for running them, and the draft text of the sections not yet in `SPEC.md`.
 
-## Where things stand (2026-11-17)
+## Where things stand (2026-11-18)
 
 - Work is on the superproject branch `ynab-spec`, which the human hasn't merged into `main` yet. `lane.sh` commits inside the submodules on their own `main` branches. Don't push, or merge into `main`, without asking the human.
 - **Round 1 (sections 3 and 4) is complete.** The judge passed 103 of 103 tests at superproject commit `9911cc4` (testsuite `254acec`, server `7dd56c5`).
@@ -12,8 +12,9 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 5 (section 12) is complete.** The judge passed 714 of 714 tests at superproject commit `6755ed4` (testsuite `937c53a`, server `775ddec`), in one run of `round.sh` with the tester at xhigh effort. One 2-minute implementer run made the tester's 54 failing tests pass. The attack found nothing new; it added worked scenarios for edits and a model-based test in `testsuite/` (four seeds of 360 random edits, checked against the tester's own model of sections 11 and 12), which guard this code before section 13 changes it.
 - **Refactor round 1 is complete.** A code review found the server hand-rolling what axum, serde and `indexmap` provide, and repeating rules in several places. `roles/implementer.md` gained a "How the code should look" section, and `round.sh` gained `START=implementer` for rounds with no new tests first. With the brief in `spec/refactor-1.md`, the implementer moved the server to axum's `Router`, serde views, `IndexMap` storage and a `Month` type in one run (a first run hit a usage limit). The judge passed 714 of 714; the tester's attack found nothing new and asked about query decoding, ruled in 3.5. A final judge run passed 717 of 717 at superproject commit `b7694c5` (testsuite `de71230`, server `ece59d4`).
 - **Round 6 (section 13) is complete.** The judge passed 766 of 766 tests at superproject commit `032b3c7` (testsuite `f272024`, server `df0a08f`), in one run of `round.sh`. Section 13 was tightened before pasting (see the rulings). One implementer run made the tester's 36 failing tests pass, and the attack (concurrent deletes, credit funding after a merge, transfers and splits whose category moved) found nothing new. The tester reads a bare `?reassign_to` as present with an empty value (400), as its 8.5 tests do for `since_date=`.
-- **Clause 1.4 was added for the macOS app** (`app/`), so the server it bundles exits when the app dies. It's opt-in, through `MYBUDGET_EXIT_ON_STDIN_EOF=1`, because the judge's startup check runs the server with stdin `/dev/null`. It has no tests or implementation yet; a short round, `app-1`, takes it on before round 7.
-- **Round app-1 (clause 1.4) is next, then round 7 (section 14).**
+- **Clause 1.4 was added for the macOS app** (`app/`), so the server it bundles exits when the app dies. It's opt-in, through `MYBUDGET_EXIT_ON_STDIN_EOF=1`, because the judge's startup check runs the server with stdin `/dev/null`.
+- **Round app-1 (clause 1.4) is complete.** The judge passed 809 of 809 tests at superproject commit `67a7709` (testsuite `a1ba732`, server `b624e62`), in two runs of `round.sh`. The first run's attack found that the server took an empty read on non-blocking stdin for end of file, and asked whether that was allowed; the ruling says it isn't. The rerun's implementer run fixed it, and the last attack (stdin that never ends, long quiet stretches, a full pipe closed, a parent that exits) found nothing new. `lane.sh` no longer requires a clean `app/` or watches it, because the app session works there during rounds, and it commits only its lane in the superproject.
+- **Round 7 (section 14) is next.**
 
 ## How to run a round
 
@@ -83,6 +84,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 5 | 2 / 1 | 148 | 195,078 | 10,011,759 | 503,208 | 9.93 |
 | refactor-1 | 1 / 2 | 184 | 174,767 | 12,087,108 | 483,818 | 9.78 |
 | 6 | 2 / 1 | 128 | 120,653 | 5,747,449 | 389,243 | 6.68 |
+| app-1 | 4 / 2 | 210 | 175,618 | 7,101,894 | 430,880 | 8.38 |
 
 ## The rounds
 
