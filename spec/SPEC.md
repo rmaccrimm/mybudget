@@ -618,7 +618,7 @@ Without `MYBUDGET_DATA`, the server keeps its data only in memory, as the earlie
 
 15.4 When a plan's name changes (4.3), its file is renamed as 15.2 names it, except that the plan's own file never counts as a clash: renaming `Household` to `household` gives `household.sqlite`. If the new safe name is exactly the old one, the file keeps its name, suffix included. Deleting a plan (4.4) deletes its file.
 
-15.5 A server started on a directory serves the plans in every file there whose name ends in `.sqlite`, and ignores other files. It serves the same data the earlier server did: the same ids, values and list orders. 4.2's "oldest first" uses a creation time kept in each plan's file. A change is saved before the response to the request that made it, so it survives the server being killed (`SIGKILL`) at any point afterwards.
+15.5 A server started on a directory serves the plans in every file there whose name ends in `.sqlite`, in lowercase, and ignores other files. A file whose name ends in `.SQLITE` or another mix of case is ignored, though its name can still clash with a plan file's (15.2). It serves the same data the earlier server did: the same ids, values and list orders. 4.2's "oldest first" uses a creation time kept in each plan's file. A change is saved before the response to the request that made it, so it survives the server being killed (`SIGKILL`) at any point afterwards.
 
 ```
 (server started with MYBUDGET_DATA=<dir>)

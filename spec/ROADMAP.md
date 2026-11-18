@@ -75,6 +75,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 3.2, 3.4, 3.5, 15 | Changes made with the human before round 7, not rulings: section 15 rewritten for one SQLite file per plan, migrations and `migrate`; `500` for a failed save; ids become version 4 UUIDs. |
 | This file's commit | 15.2, 15.8 | Anything in the directory with a plan file's name, a folder included, makes it clash; a database with `user_version` below 1 isn't a plan file. (Readings the tester flagged in round 7.) |
 | This file's commit | 15.2 | When the name with 8 characters of the id is taken too, the file gets the whole id; if that's taken, the request returns 500. (Implementer question, round 7.) |
+| This file's commit | 15.5 | Only names ending in lowercase `.sqlite` are plan files; `.SQLITE` and other mixes of case are ignored, though they can still clash (15.2). (Tester question, round 7.) |
 
 ## Token usage
 
