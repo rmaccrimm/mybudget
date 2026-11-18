@@ -12,7 +12,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round 5 (section 12) is complete.** The judge passed 714 of 714 tests at superproject commit `6755ed4` (testsuite `937c53a`, server `775ddec`), in one run of `round.sh` with the tester at xhigh effort. One 2-minute implementer run made the tester's 54 failing tests pass. The attack found nothing new; it added worked scenarios for edits and a model-based test in `testsuite/` (four seeds of 360 random edits, checked against the tester's own model of sections 11 and 12), which guard this code before section 13 changes it.
 - **Refactor round 1 is complete.** A code review found the server hand-rolling what axum, serde and `indexmap` provide, and repeating rules in several places. `roles/implementer.md` gained a "How the code should look" section, and `round.sh` gained `START=implementer` for rounds with no new tests first. With the brief in `spec/refactor-1.md`, the implementer moved the server to axum's `Router`, serde views, `IndexMap` storage and a `Month` type in one run (a first run hit a usage limit). The judge passed 714 of 714; the tester's attack found nothing new and asked about query decoding, ruled in 3.5. A final judge run passed 717 of 717 at superproject commit `b7694c5` (testsuite `de71230`, server `ece59d4`).
 - **Round 6 (section 13) is complete.** The judge passed 766 of 766 tests at superproject commit `032b3c7` (testsuite `f272024`, server `df0a08f`), in one run of `round.sh`. Section 13 was tightened before pasting (see the rulings). One implementer run made the tester's 36 failing tests pass, and the attack (concurrent deletes, credit funding after a merge, transfers and splits whose category moved) found nothing new. The tester reads a bare `?reassign_to` as present with an empty value (400), as its 8.5 tests do for `since_date=`.
-- **Round 7 (section 14) is next.**
+- **Clause 1.4 was added for the macOS app** (`app/`), so the server it bundles exits when the app dies. It's opt-in, through `MYBUDGET_EXIT_ON_STDIN_EOF=1`, because the judge's startup check runs the server with stdin `/dev/null`. It has no tests or implementation yet; a short round, `app-1`, takes it on before round 7.
+- **Round app-1 (clause 1.4) is next, then round 7 (section 14).**
 
 ## How to run a round
 
@@ -66,6 +67,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 11, 12 | Changes made before round 5, not rulings: section 11's references point back at 12.3 to 12.5 and its intro no longer leaves credit months unspecified; 12.7's example says Groceries is the plan's only user category. |
 | This file's commit | 3.5, 8.5 | Clients never percent-encode query parameters either, so decoding them (and `+`) is unspecified. A repeated query parameter has each value checked, so any invalid one returns 400, and the last counts. (Tester question, refactor round 1.) |
 | This file's commit | 13 | Changes made before round 6, not rulings: `DELETE` returns 204 (3.3); `reassign_to` is checked whenever present and can't be the deleted category, `ready_to_assign` or a payment category; assigned amounts move to `reassign_to` even when the category wasn't in use; an example of the 409; 13.4 says what a deleted category looks like afterwards. |
+| This file's commit | 1.4 | Added for the macOS app, not a ruling: with `MYBUDGET_EXIT_ON_STDIN_EOF=1` the server exits when stdin reaches end of file, ignoring anything it reads first. |
 
 ## Token usage
 
@@ -90,6 +92,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 4 | 11 | `SPEC section 11 (months and Ready to Assign), for plans without credit accounts; section 12 covers those next round` | 11 refers ahead to 12 for the credit fields, so the task keeps the tester to cash accounts. |
 | 5 | 12 | `SPEC section 12 (credit cards)` | The hardest maths. Check 12.2 to 12.5 and the example in 12.7 before pasting. Section 11 was pasted with credit accounts left unspecified: point 11.3, 11.5 and 11.6 back at 12.4, 12.3 and 12.5, and drop the intro's sentence saying credit months aren't specified. |
 | 6 | 13 | `SPEC section 13 (deleting categories). DELETE on a category returned 405 until now.` | |
+| app-1 | 1.4, already in `SPEC.md` | `SPEC clause 1.4 (exiting when stdin reaches end of file), which is new` | Testing 1.4 needs `Server` to pass env vars and pipe stdin. |
 | 7 | 14 | `SPEC section 14 (reconciliation)` | |
 | 8 | 15 | `SPEC section 15 (persistence)` | The tester will extend `Server` to pass env vars and restart on the same data directory. The judge's per-test scratch folder (`TMPDIR`) is writable. |
 | 9 | 16 | `SPEC section 16 (scheduled transactions)` | Needs 15: a test moves "today" by restarting with a new `MYBUDGET_TODAY`. Tests should always set it. |

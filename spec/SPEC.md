@@ -15,6 +15,19 @@ The scripts depend on two format rules:
 
 1.3 Once it is listening, its first line on stdout is exactly `listening on <ip>:<port>`, giving the actual port. The judge checks this before running any tests.
 
+1.4 When the environment variable `MYBUDGET_EXIT_ON_STDIN_EOF` is `1`, the server exits with status 0 within one second of its standard input reaching end of file, as it does when the process that started it closes its end of a pipe or dies. Anything it reads from standard input before then is ignored. This lets the macOS app, which runs the server as a child process, make sure the server never outlives it. With the variable unset or set to anything else, the server never reads its standard input, so end of file there changes nothing.
+
+```
+(server started with MYBUDGET_EXIT_ON_STDIN_EOF=1, its stdin a pipe)
+(the other end of the pipe is closed)
+→ the server exits with status 0
+
+(server started without MYBUDGET_EXIT_ON_STDIN_EOF, its stdin /dev/null)
+GET /health
+→ 200
+ok
+```
+
 ## 2. Health
 
 2.1 `GET /health` returns `200` with the body `ok`.

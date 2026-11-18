@@ -3,11 +3,15 @@
 | Path | Repo | What |
 | --- | --- | --- |
 | `server/` | `mybudget-server` | Rust HTTP API (axum) |
-| `app/` | `mybudget-app` | macOS SwiftUI client (not created yet; see `app/README.md`) |
+| `app/` | `mybudget-app` | Native macOS client (Swift 6, SwiftUI), which bundles and runs the server; see `app/README.md` |
 | `testsuite/` | `mybudget-testsuite` | Rust tests that run the server as a subprocess |
 | `spec/SPEC.md` | this repo | The contract both agents work from |
 | `roles/` | this repo | Agent prompts and per-role Claude Code settings |
 | `scripts/` | this repo | Test runner, lane runner, judge, round loop |
+
+## The app
+
+`app/` is a native macOS app (Swift 6, SwiftUI, no dependencies). Its build compiles `server/` with cargo into the app bundle. At launch the app starts that server on a free port (SPEC 1.2, 1.3) and talks to it over the same HTTP API a web client would use. The app is outside the adversarial loop: neither agent can read or write it. It relies only on what `SPEC.md` promises, so a server change the spec allows can't break it. When the app needs something new from the server, add a clause for a round to build, as with 1.4. `app/README.md` covers the stack, building and testing.
 
 ## How the agents are kept apart
 
