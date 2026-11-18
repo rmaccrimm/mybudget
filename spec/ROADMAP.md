@@ -73,6 +73,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 1.4 | Added for the macOS app, not a ruling: with `MYBUDGET_EXIT_ON_STDIN_EOF=1` the server exits when stdin reaches end of file, ignoring anything it reads first. |
 | This file's commit | 1.4 | The server exits only at end of file on stdin: a read that finds nothing waiting (non-blocking stdin) isn't end of file. Other read errors are unspecified. (Tester question, round app-1.) |
 | This file's commit | 3.2, 3.4, 3.5, 15 | Changes made with the human before round 7, not rulings: section 15 rewritten for one SQLite file per plan, migrations and `migrate`; `500` for a failed save; ids become version 4 UUIDs. |
+| This file's commit | 15.2, 15.8 | Anything in the directory with a plan file's name, a folder included, makes it clash; a database with `user_version` below 1 isn't a plan file. (Readings the tester flagged in round 7.) |
 
 ## Token usage
 
