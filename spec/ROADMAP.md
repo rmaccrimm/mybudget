@@ -16,7 +16,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round app-1 (clause 1.4) is complete.** The judge passed 809 of 809 tests at superproject commit `67a7709` (testsuite `a1ba732`, server `b624e62`), in two runs of `round.sh`. The first run's attack found that the server took an empty read on non-blocking stdin for end of file, and asked whether that was allowed; the ruling says it isn't. The rerun's implementer run fixed it, and the last attack (stdin that never ends, long quiet stretches, a full pipe closed, a parent that exits) found nothing new. `lane.sh` no longer requires a clean `app/` or watches it, because the app session works there during rounds, and it commits only its lane in the superproject.
 - **Persistence was pulled forward (2026-11-18).** The human asked for section 15 before 14, rewritten: one SQLite file per plan, named after the plan, with schema migrations that each have a down and a `migrate` command to run them (see "Decisions the draft makes"). Section 15 is in `SPEC.md`, with changes to 3.2 and 3.4 (a `500` for a failed save) and 3.5 (ids become version 4 UUIDs). Section 14 keeps its number.
 - **Round 7 (section 15) is complete.** The judge passed 916 of 916 tests at the superproject commit that records this (testsuite `9e1e35c`, server `0f09776`), after nine runs of `round.sh`: four stopped on questions, two on a dispute and three on usage limits (resumed with `START=judge`). The rulings settled what clashes with a plan file's name and the fallback to the whole id (15.2), lowercase `.sqlite` only (15.5), which files count as duplicates (15.7, a dispute upheld), and that 1.4's one second runs from startup. The round ended at the two-attack limit, not on a clean attack: the last two attacks still found bugs (a startup check that deleted user folders with the server's scratch prefix, `migrate` failing in a read-only folder, half-made plan files after a kill), all fixed. Expect section 15 to have more corners; a later round's attacks may find them. Version 1's migration is now fixed: `spec/migrations.sha256` holds its checksums and the judge fails any change to it. The round cost $59.62, the most so far.
-- **Round 8 (section 14) is running.** Section 14 is in `SPEC.md`, before section 15, with 14.1 tightened (required fields, closed and tracking accounts, `200`).
+- **Round 8 (section 14) is complete.** The judge passed 980 of 980 tests at the superproject commit that records this (testsuite `7e87efb`, server `3caec01`), in two runs of `round.sh`. Section 14 was pasted with 14.1 tightened (required fields, closed and tracking accounts, `200`). The first run stopped on a tester question about adjustments outside 3.7's range (ruled in 14.2: 409). One implementer run passed every test, and the attack (adjustments edited, deleted and listed like other transactions, races with new cleared transactions) found nothing new.
+- **Round 9 (section 16) is next**, with the task in the rounds table below.
 
 ## How to run a round
 
@@ -81,6 +82,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 15.7 | A file skipped for another reason (unreadable, a newer version) never hides another file holding the same plan; only usable files count as duplicates. (Implementer question, round 7.) |
 | This file's commit | 15.7 | Dispute rejected: a file counts as holding a plan only if the server would serve it alone, so a read-only WAL copy it can't use doesn't hide the original; each skipped file's report stays on one line, however its name is escaped. (Implementer dispute, round 7.) |
 | This file's commit | 1.4 | The one second runs from the moment the server starts, including while it loads its data; end of file before it's listening means it exits without the `listening on` line. (Implementer question, round 7.) |
+| `afdb0dd` | 14.2 | An adjustment whose amount would fall outside 3.7's range returns 409 and changes nothing, so every transaction's amount stays in range. (Tester question, round 8.) |
 
 ## Token usage
 
@@ -97,6 +99,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 6 | 2 / 1 | 128 | 120,653 | 5,747,449 | 389,243 | 6.68 |
 | app-1 | 4 / 2 | 210 | 175,618 | 7,101,894 | 430,880 | 8.38 |
 | 7 | 12 / 10 | 1,350 | 1,056,864 | 77,068,862 | 2,883,407 | 59.62 |
+| 8 | 3 / 1 | 178 | 95,347 | 6,891,130 | 393,244 | 6.43 |
 
 ## The rounds
 
