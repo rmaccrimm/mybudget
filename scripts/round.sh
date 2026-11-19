@@ -10,6 +10,8 @@
 # Set MYBUDGET_ROUND (e.g. 3) to label the round's token usage; it defaults to the task.
 # Set START=implementer for a task that needs no new tests first, such as a refactor:
 # the implementer works on the task, then the judge and the attacks follow as usual.
+# Set START=judge to resume a round whose last agent run was cut off (a usage limit):
+# the judge runs on the committed code, then the fixes and attacks follow as usual.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,11 +32,11 @@ lane() {
   fi
 }
 
-if [[ "${START:-tester}" == implementer ]]; then
-  lane implementer "Task: $task"
-else
-  lane tester "Write tests for: $task"
-fi
+case "${START:-tester}" in
+  implementer) lane implementer "Task: $task" ;;
+  judge) ;;  # resume after an interrupted run: judge the committed code, then fix and attack
+  *) lane tester "Write tests for: $task" ;;
+esac
 for (( attack = 0; ; attack++ )); do
   fixes=0
   while true; do
