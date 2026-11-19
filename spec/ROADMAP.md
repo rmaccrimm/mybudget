@@ -1,6 +1,6 @@
 # Roadmap: the remaining rounds
 
-This is for the agent that resumes the work. The goal is a server that replicates YNAB's core budgeting, specified in `SPEC.md` and built one round at a time by the tester and implementer (see `README.md` for how rounds work). Sections 3 to 17 were drafted together from research into YNAB; this file holds the plan for the rounds still to run, the rules for running them, and the draft text of the sections not yet in `SPEC.md`.
+This is for the agent that resumes the work. The goal is a server that replicates YNAB's core budgeting, specified in `SPEC.md` and built one round at a time by the tester and implementer (see `README.md` for how rounds work). The sections were drafted together from research into YNAB; this file holds the plan for the rounds still to run, the rules for running them, and the draft text of the sections not yet in `SPEC.md`.
 
 ## Where things stand (2026-11-18)
 
@@ -17,7 +17,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Persistence was pulled forward (2026-11-18).** The human asked for section 15 before 14, rewritten: one SQLite file per plan, named after the plan, with schema migrations that each have a down and a `migrate` command to run them (see "Decisions the draft makes"). Section 15 is in `SPEC.md`, with changes to 3.2 and 3.4 (a `500` for a failed save) and 3.5 (ids become version 4 UUIDs). Section 14 keeps its number.
 - **Round 7 (section 15) is complete.** The judge passed 916 of 916 tests at the superproject commit that records this (testsuite `9e1e35c`, server `0f09776`), after nine runs of `round.sh`: four stopped on questions, two on a dispute and three on usage limits (resumed with `START=judge`). The rulings settled what clashes with a plan file's name and the fallback to the whole id (15.2), lowercase `.sqlite` only (15.5), which files count as duplicates (15.7, a dispute upheld), and that 1.4's one second runs from startup. The round ended at the two-attack limit, not on a clean attack: the last two attacks still found bugs (a startup check that deleted user folders with the server's scratch prefix, `migrate` failing in a read-only folder, half-made plan files after a kill), all fixed. Expect section 15 to have more corners; a later round's attacks may find them. Version 1's migration is now fixed: `spec/migrations.sha256` holds its checksums and the judge fails any change to it. The round cost $59.62, the most so far.
 - **Round 8 (section 14) is complete.** The judge passed 980 of 980 tests at the superproject commit that records this (testsuite `7e87efb`, server `3caec01`), in two runs of `round.sh`. Section 14 was pasted with 14.1 tightened (required fields, closed and tracking accounts, `200`). The first run stopped on a tester question about adjustments outside 3.7's range (ruled in 14.2: 409). One implementer run passed every test, and the attack (adjustments edited, deleted and listed like other transactions, races with new cleared transactions) found nothing new.
-- **Round 9 (section 16) is next**, with the task in the rounds table below.
+- **Round 9 (section 16, targets) is next**, with the task in the rounds table below. Scheduled transactions, once drafted as section 16, are out of scope (the human, 2026-11-19); targets took the number.
 
 ## How to run a round
 
@@ -34,7 +34,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
    - Anything else: `lane.sh` stopped, for example because an agent left its lane. Read the log.
 5. To settle a question or dispute, change `SPEC.md` and commit, quoting the question in the message. Then rerun `round.sh` with the same task followed by `Tests for them already exist. Since the last run, <what changed>.` A rerun starts again with the tester revising its tests, then runs the judge, the implementer and the attacks.
    - Rule yourself on HTTP, JSON and validation edge cases. Prefer a general rule in section 3 to a one-off, and keep the server's current behaviour when it's reasonable.
-   - Ask the human before any ruling that changes budget behaviour (sections 11 to 17) or goes against a decision listed below.
+   - Ask the human before any ruling that changes budget behaviour (sections 11 to 16) or goes against a decision listed below.
    - For a dispute, read the clause's tests (`grep -rn spec_5_2_ testsuite/tests`) and their output in `~/.cache/mybudget/judge/results/tests.log`. If the tests ask too much, name them in the rerun's task so the tester fixes them. Only the tester edits `testsuite/`.
 6. An attack that finds nothing new ends the round, even if it also raises a question. Settle the question, run `scripts/judge.sh` (under `caffeinate -i`) to confirm everything passes, and move on. Round 1 ended this way.
 7. When the round is complete, run `scripts/usage.sh <n>` and add its totals to the token usage table below, in the same commit as the "round N is complete" note. If the round added a migration, also record its checksums in the same commit: `cd server && shasum -a 256 migrations/*/*.sql > ../spec/migrations.sha256`. The judge fails any later change to a migration listed there.
@@ -54,8 +54,8 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 - For each `PATCH`: which fields can change, whether a field it can't change is ignored (3.6) or rejected because the change is never allowed (3.4), and what a `PATCH` that sets a field to its current value does.
 - For each request field: required or optional, nullable or not (3.10), and its format. 3.7 to 3.9 define amounts, dates and names.
 - References to sections that aren't pasted yet: reword them, or keep the tester off them in the task.
-- Behaviour that changes from an earlier round: say so in the task, so the tester updates its older tests. Known cases: section 13 defines `DELETE` on a category (405 until then); 16.6 extends 5.9 and 6.4; section 17 adds `target` to categories, `target`, `due` and `underfunded` to month entries, and `underfunded` to months, and changes what 11.2's `PATCH` and 13.3 do to assigned amounts.
-- Data to keep: since section 15, a section that adds a new kind of data says which schema version (15.8) holds it and what migrating below that version drops. Its round's task says the new data must persist and migrate both ways. Section 14 adds no new kind of data; section 16's scheduled transactions are the first, as version 2.
+- Behaviour that changes from an earlier round: say so in the task, so the tester updates its older tests. Known cases: section 13 defines `DELETE` on a category (405 until then); section 16 adds `target` to categories, `target`, `due` and `underfunded` to month entries, and `underfunded` to months, and changes what 11.2's `PATCH` and 13.3 do to assigned amounts.
+- Data to keep: since section 15, a section that adds a new kind of data says which schema version (15.8) holds it and what migrating below that version drops. Its round's task says the new data must persist and migrate both ways. Section 14 adds no new kind of data; section 16's assignments and targets are the first, as version 2.
 
 ## Rulings so far
 
@@ -113,8 +113,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | app-1 | 1.4, already in `SPEC.md` | `SPEC clause 1.4 (exiting when stdin reaches end of file), which is new` | Testing 1.4 needs `Server` to pass env vars and pipe stdin. |
 | 7 | 15, already in `SPEC.md` | `spec/round-7.md` (pass its text) | Pulled ahead of 14. The tester extends the harness to restart on the same data directory and to open plan files with `rusqlite`. The judge's per-test scratch folder (`TMPDIR`) is writable. A bundled SQLite builds offline in a sandbox like the judge's (checked 2026-11-18). |
 | 8 | 14 | `SPEC section 14 (reconciliation). Its data persists like the rest (section 15).` | Adds no schema version. Paste it before section 15 in `SPEC.md`, to keep the sections in order. |
-| 9 | 16 | `SPEC section 16 (scheduled transactions)` | Needs 15: a test moves "today" by restarting with a new `MYBUDGET_TODAY`. Tests should always set it. Scheduled transactions are schema version 2, the first with a real down migration: add to 16 what migrating to version 1 drops. |
-| 10 | 17 | `SPEC section 17 (targets and assignment history). It changes earlier behaviour: 11.2's PATCH now records assignments, 13.3 moves them, and categories, month entries and months gain fields.` | Needs 16: today comes from 16.1, and tests move it by restarting with a new `MYBUDGET_TODAY` and the same `MYBUDGET_DATA`. Assignments and targets are schema version 3, with an upgrade from version 2 and a down migration (17.7). |
+| 9 | 16 | `SPEC section 16 (targets and assignment history). It changes earlier behaviour: 11.2's PATCH now records assignments, 13.3 moves them, and categories, month entries and months gain fields.` | Today comes from 16.1: tests should always set `MYBUDGET_TODAY`, and move it by restarting with a new one and the same `MYBUDGET_DATA`. Assignments and targets are schema version 2, the first with a real down migration (16.8). The round adds a migration, so record its checksums when it's complete. |
 
 ## Decisions the draft makes
 
@@ -126,8 +125,8 @@ YNAB doesn't decide these, or doesn't fit an HTTP contract. Keep rulings consist
 - **Every on-budget transaction has a category**, unless it's a transfer between on-budget accounts or a split. YNAB allows uncategorized transactions. In a credit account, `ready_to_assign` means only the debt changes, which is how YNAB treats statement credits and balance adjustments. Starting balances and reconciliation adjustments in on-budget accounts use `ready_to_assign`.
 - **Credit card funding is worked out per month and category** (12.2), so it doesn't depend on the order transactions were entered or edited. When several cards share an underfunded category, the cards are funded in the order they were created. YNAB funds the earliest purchases first.
 - **The Ready to Assign formula (11.7)** isn't published by YNAB. It was derived from YNAB's help articles on assigning ahead, overspending and later income, and reproduces every case they describe.
-- **There's no clock until section 16.** Transactions dated in the future count as soon as they're entered. Section 16 reads today from `MYBUDGET_TODAY`.
-- **`approved` defaults to true** for transactions created through the API. Scheduled transactions are entered with `approved` false, as in YNAB.
+- **There's no clock until section 16.** Transactions dated in the future count as soon as they're entered, even after section 16, which reads today from `MYBUDGET_TODAY` for targets and assignment dates.
+- **`approved` defaults to true** for transactions created through the API.
 - **Closing an account needs a zero balance**, and deleting one needs it to have no transactions. Deleting a category that's in use needs `reassign_to`.
 - **Persistence (section 15)**, decided with the human on 2026-11-18:
   - One SQLite file per plan, so single plans can be copied between devices. It's named after the plan, with 8 characters of the plan's id added only when the name clashes. This breaks parity with YNAB, which the human accepted.
@@ -135,7 +134,7 @@ YNAB doesn't decide these, or doesn't fit an HTTP contract. Keep rulings consist
   - A plan file the server can't use is skipped with a warning; only an unusable directory stops the server. Two files holding the same plan are both skipped.
   - Every migration has a down, and `mybudget-server migrate` runs them either way. Some data may be lost between versions.
   - SQLite is bundled (`rusqlite`), so every device writes files with the same SQLite version.
-- **Targets (section 17)**, decided with the human on 2026-11-19:
+- **Targets (section 16)**, decided with the human on 2026-11-19:
   - Two types, `set_aside` and `refill`. Both are monthly and repeat until removed. There are no one-off goals, weekly or yearly targets, or snoozing.
   - `by_date` is the day of the month a target is due, returned as each month's `due` date. It doesn't change `underfunded`.
   - Spending never counts against a target. A `refill` target counts the money carried in from last month.
@@ -149,8 +148,9 @@ YNAB doesn't decide these, or doesn't fit an HTTP contract. Keep rulings consist
 - Payees on individual subtransactions, and transfers inside a split.
 - Importing and matching bank transactions, payee locations, money-movement history, undo, delta sync, ordering of categories and groups, month notes, and most of YNAB's target types (one-off goals, weekly and yearly targets, snoozing).
 - Age of Money. The human dropped it on 2026-11-19; the app doesn't need it.
+- Scheduled transactions. The human ruled them out of scope on 2026-11-19.
 
-Possible sections after 17: moving money between categories in one request, ordering categories and groups, month notes, bulk import with an `import_id` so a transaction imported twice is entered once, delta sync for the app, and the items above.
+Possible sections after 16: moving money between categories in one request, ordering categories and groups, month notes, bulk import with an `import_id` so a transaction imported twice is entered once, delta sync for the app, and the items above.
 
 ## How YNAB keeps its books
 
@@ -162,7 +162,7 @@ These are the rules the draft copies.
 - Each credit card has a payment category. Card spending a category covers moves that money into the payment category. Payments take money out of it, and refunds move money back to the spending category. A cash advance (card to checking) adds to Ready to Assign without touching the payment category. A card's starting debt, statement credits and balance adjustments only change what's owed. To pay off old debt, you assign money to the payment category.
 - Money assigned in a future month comes out of this month's Ready to Assign, as Assigned in Future. A later month's income covers that month's assignments first. If you assign more than you have, the month that runs out shows a negative Ready to Assign, not the months before it.
 - A transfer between two on-budget accounts, or two tracking accounts, has no category. A transfer between an on-budget account and a tracking account moves money into or out of the plan, so its on-budget side needs a category.
-- Splits spread one payment over categories. Cleared and reconciled statuses track agreement with the bank, and reconciling adds an adjustment for any difference. Scheduled transactions are entered when they fall due, unapproved. Amounts are milliunits (1000 is one unit of currency).
+- Splits spread one payment over categories. Cleared and reconciled statuses track agreement with the bank, and reconciling adds an adjustment for any difference. Amounts are milliunits (1000 is one unit of currency).
 
 Sources:
 - https://pypi.org/project/ynab/: the Python client, version 4.4.1, built from API spec 1.86.0.
@@ -170,12 +170,12 @@ Sources:
 - YNAB support articles at `https://support.ynab.com/en_us/<slug>`. Mainly:
   - Ready to Assign and months: `the-plan-header-BkmiuJ_C9`, `assigning-future-income-an-overview-BJsTo0jCq`, `when-ready-to-assign-is-negative-an-overview-HylZA0zCc`, `overspending-and-the-monthly-rollover-S1ySgcLSMx`.
   - Credit cards: `credit-cards-funded-spending-By7XIs8HMg`, `credit-card-overspending-an-overview-HkMGpSbJs`, `credit-card-refunds-and-returns-H1J7qDWkj`, `credit-card-cash-advances-an-overview-Hy6PmlOC9`, `credit-card-rewards-and-statement-credits-a-guide-ryoRzYY0q`, `credit-cards-with-a-positive-balance-an-overview-By_H6uzJo`.
-  - Transactions, accounts and categories: `transfer-transactions-a-guide-HJOsZz4Jj`, `split-transactions-a-guide-SJLEKwY0q`, `reconciling-accounts-a-guide-BJFE3fHys`, `balance-adjustments-a-guide-rko4OwILs`, `how-to-close-or-delete-an-account-in-ynab-ry_409Gko`, `adding-removing-and-customizing-categories-a-guide-HJFO5j909`, `scheduled-transactions-a-guide-BygrAIFA9`.
+  - Transactions, accounts and categories: `transfer-transactions-a-guide-HJOsZz4Jj`, `split-transactions-a-guide-SJLEKwY0q`, `reconciling-accounts-a-guide-BJFE3fHys`, `balance-adjustments-a-guide-rko4OwILs`, `how-to-close-or-delete-an-account-in-ynab-ry_409Gko`, `adding-removing-and-customizing-categories-a-guide-HJFO5j909`.
   - Targets: `how-to-use-targets-rk5kkI9ks`, `underfunded-a-guide-BJwPhQO09`.
 
 ## How the examples were checked
 
-The numbers in the examples in 11.8, 12.7, 13.3 and 17.2 were checked against a small Python model of sections 11 and 12. The model also reproduced YNAB's documented cases:
+The numbers in the examples in 11.8, 12.7 and 13.3 were checked against a small Python model of sections 11 and 12. The model also reproduced YNAB's documented cases:
 
 - assigning ahead with nothing left to assign (the later month goes negative, not the current one)
 - new income covering an over-assignment
@@ -187,92 +187,18 @@ The numbers in the examples in 11.8, 12.7, 13.3 and 17.2 were checked against a 
 - a statement credit
 - money coming in from a tracking account
 
-The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. The recurrence dates in 16.4 and 16.5 were generated the same way.
+The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. Section 16's examples were worked out by hand.
 
-## Appendix: draft sections 16 and 17
+## Appendix: draft section 16
 
 Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them.
 
 ````markdown
-## 16. Scheduled transactions
+## 16. Targets
 
-16.1 Today is the date in the environment variable `MYBUDGET_TODAY` (`YYYY-MM-DD`) if it is set, and otherwise the current date in the server's local time zone.
+16.1 Today is the date in the environment variable `MYBUDGET_TODAY` (`YYYY-MM-DD`) if it is set, and otherwise the current date in the server's local time zone. If it is set to anything that isn't a date (3.8), the server writes a message to stderr and exits with a non-zero status, without printing 1.3's line. Transactions still count as soon as they're entered, whatever their date.
 
-16.2 `POST /plans/{plan_id}/scheduled_transactions` creates a scheduled transaction from `account_id`, `date`, `amount` (all required), `frequency` (default `"never"`), `payee_id` or `payee_name` (6.5), `category_id`, `memo` and `flag_color`, which follow 8.1, 8.2 and 9.3. It has no subtransactions. `date` must be after today and no more than five years after it: on or before the same month and day five years later, or 28 February when that day doesn't exist. Otherwise the request returns 400.
-
-```
-(server started with MYBUDGET_TODAY=2026-10-30)
-POST /plans/PLAN_ID/scheduled_transactions
-{"account_id": "CHECKING_ID", "date": "2026-10-31", "frequency": "monthly", "amount": -1200000,
- "payee_name": "Landlord", "category_id": "RENT_ID"}
-→ 201
-{"id": "RENT_SCHEDULE_ID", "account_id": "CHECKING_ID", "date_first": "2026-10-31",
- "date_next": "2026-10-31", "frequency": "monthly", "amount": -1200000,
- "payee_id": "LANDLORD_ID", "category_id": "RENT_ID", "memo": null, "flag_color": null,
- "transfer_account_id": null}
-```
-
-16.3 `GET /plans/{plan_id}/scheduled_transactions` lists them by `date_next`, then oldest first; `GET .../scheduled_transactions/{id}` returns one. `PATCH` on one can change every field 16.2 takes except `account_id` (400 if different). A `PATCH` with `date` or `frequency` restarts the schedule: `date_first` and `date_next` both become the new `date`, or the current `date_next` if there's no new `date`. `DELETE` deletes one.
-
-```
-(server started with MYBUDGET_TODAY=2026-10-30; GYM_SCHEDULE_ID is a monthly schedule)
-PATCH /plans/PLAN_ID/scheduled_transactions/GYM_SCHEDULE_ID
-{"date": "2026-11-05"}
-→ 200
-{"id": "GYM_SCHEDULE_ID", "account_id": "CHECKING_ID", "date_first": "2026-11-05",
- "date_next": "2026-11-05", "frequency": "monthly", "amount": -45000,
- "payee_id": "GYM_ID", "category_id": "FITNESS_ID", "memo": null, "flag_color": null,
- "transfer_account_id": null}
-
-DELETE /plans/PLAN_ID/scheduled_transactions/GYM_SCHEDULE_ID
-→ 204
-```
-
-16.4 `frequency` is one of the values below. A schedule's occurrences start at `date_first`:
-
-- `never`: only `date_first`.
-- `daily`, `weekly`, `everyOtherWeek`, `every4Weeks`: every 1, 7, 14 or 28 days.
-- `monthly`, `everyOtherMonth`, `every3Months`, `every4Months`, `twiceAYear`, `yearly`, `everyOtherYear`: every 1, 2, 3, 4, 6, 12 or 24 months, on `date_first`'s day of the month, or the month's last day when it is shorter.
-- `twiceAMonth`: in every month from `date_first`'s on, on `date_first`'s day of the month (or the month's last day when it is shorter), and again 15 days after that day.
-
-There are no occurrences after `2999-12-31`.
-
-```
-monthly      from 2027-01-31: 2027-01-31, 2027-02-28, 2027-03-31, 2027-04-30
-twiceAMonth  from 2026-11-20: 2026-11-20, 2026-12-05, 2026-12-20, 2027-01-04
-twiceAMonth  from 2027-01-31: 2027-01-31, 2027-02-15, 2027-02-28, 2027-03-15
-every4Weeks  from 2026-11-02: 2026-11-02, 2026-11-30, 2026-12-28, 2027-01-25
-yearly       from 2028-02-29: 2028-02-29, 2029-02-28, 2030-02-28, 2031-02-28
-```
-
-16.5 Before handling each request, the server enters every scheduled transaction whose `date_next` is on or before today, oldest schedule first. If the schedule's account is open, entering creates a transaction as `POST /plans/{plan_id}/transactions` would from the schedule's fields, dated `date_next`, with `approved` false and the default `cleared` (a transfer gets its other half as in 9.1). Then `date_next` moves to the next occurrence; a schedule with none left is deleted. This repeats until `date_next` is after today. While the account is closed, occurrences pass without creating transactions.
-
-```
-(the server from 16.2 restarted with MYBUDGET_TODAY=2026-12-01 and the same MYBUDGET_DATA)
-GET /plans/PLAN_ID/transactions?payee_id=LANDLORD_ID
-→ 200
-[{"id": "OCT_RENT_ID", "account_id": "CHECKING_ID", "date": "2026-10-31", "amount": -1200000,
-  "payee_id": "LANDLORD_ID", "category_id": "RENT_ID", "memo": null,
-  "cleared": "uncleared", "approved": false, "flag_color": null,
-  "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []},
- {"id": "NOV_RENT_ID", "account_id": "CHECKING_ID", "date": "2026-11-30", "amount": -1200000,
-  "payee_id": "LANDLORD_ID", "category_id": "RENT_ID", "memo": null,
-  "cleared": "uncleared", "approved": false, "flag_color": null,
-  "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}]
-
-GET /plans/PLAN_ID/scheduled_transactions/RENT_SCHEDULE_ID
-→ 200
-{"id": "RENT_SCHEDULE_ID", "account_id": "CHECKING_ID", "date_first": "2026-10-31",
- "date_next": "2026-12-31", "frequency": "monthly", "amount": -1200000,
- "payee_id": "LANDLORD_ID", "category_id": "RENT_ID", "memo": null, "flag_color": null,
- "transfer_account_id": null}
-```
-
-16.6 Deleting an account (5.9) also deletes the scheduled transactions in it and those that transfer to it. A payee that a scheduled transaction uses counts as in use (6.4), and a category that one uses counts as used (13.2) and is reassigned along with transactions (13.3).
-
-## 17. Targets
-
-17.1 Each change to a category's `assigned` for a month is kept as an assignment: the amount it adds, positive or negative, and the date it was made, which is today (16.1). A month's `assigned` (11.2) is the sum of its assignments, so it is 0 until one is made. 11.2's `PATCH` makes one assignment, of the new `assigned` minus the old; a `PATCH` that leaves `assigned` as it was makes none. `GET /plans/{plan_id}/months/{month}/categories/{category_id}/assignments` lists a category's assignments for that month, in the order they were made, as objects with `date` and `amount`. It works for user and payment categories, and an empty month gives `[]`. `ready_to_assign` isn't a category here: that path returns 404, as in 11.2.
+16.2 Each change to a category's `assigned` for a month is kept as an assignment: the amount it adds, positive or negative, and the date it was made, which is today (16.1). A month's `assigned` (11.2) is the sum of its assignments, so it is 0 until one is made. 11.2's `PATCH` makes one assignment, of the new `assigned` minus the old; a `PATCH` that leaves `assigned` as it was makes none. `GET /plans/{plan_id}/months/{month}/categories/{category_id}/assignments` lists a category's assignments for that month, in the order they were made, as objects with `date` and `amount`. It works for user and payment categories, and an empty month gives `[]`. `ready_to_assign` isn't a category here: that path returns 404, as in 11.2.
 
 ```
 (11.8's plan, made on a server started with MYBUDGET_TODAY=2026-10-01, which is then restarted
@@ -288,11 +214,11 @@ GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID/assignments
 [{"date": "2026-10-01", "amount": 400000}, {"date": "2026-11-20", "amount": -50000}]
 ```
 
-The examples in 17.2 to 17.5 each start again from 11.8's plan, on a server started with `MYBUDGET_TODAY=2026-11-05`.
+The examples in 16.3 to 16.6 each start again from 11.8's plan, on a server started with `MYBUDGET_TODAY=2026-11-05`.
 
-17.2 Every category object (7.1 to 7.6) has a `target`: the category's current target (17.3), or `null`. `PATCH /plans/{plan_id}/categories/{category_id}` with `target` sets a new target, and with `null` removes it (17.3). A `PATCH` on a payment category that includes `target`, even `null`, returns 400, so a payment category's `target` is always `null`. A target in a request is an object with these fields:
+16.3 Every category object (7.1 to 7.6) has a `target`: the category's current target (16.4), or `null`. `PATCH /plans/{plan_id}/categories/{category_id}` with `target` sets a new target, and with `null` removes it (16.4). A `PATCH` on a payment category that includes `target`, even `null`, returns 400, so a payment category's `target` is always `null`. A target in a request is an object with these fields:
 
-- `type`, required: `"set_aside"`, to assign `amount` every month, or `"refill"`, to fill the category up to `amount` every month (17.4).
+- `type`, required: `"set_aside"`, to assign `amount` every month, or `"refill"`, to fill the category up to `amount` every month (16.5).
 - `amount`, required: an amount (3.7) greater than 0.
 - `by_date`, optional and nullable: the day of the month the target is due, a JSON integer from 1 to 31 written without a fraction or exponent. `null`, the default, means the month's last day.
 - `start_month`, optional and not nullable: the first month the target applies to (3.8). It defaults to today's month, and a month before today's returns 400.
@@ -308,9 +234,9 @@ PATCH /plans/PLAN_ID/categories/GROCERIES_ID
  "target": {"type": "refill", "amount": 400000, "by_date": 15, "start_month": "2026-11"}}
 ```
 
-17.3 A category may have many targets over time, but no two apply to the same month. Each target applies from its `start_month` until the month before the next one's `start_month`, or without end if no other target follows it; the category's current target is the one without end, if there is one. Setting a target that starts in month S removes every target of the category whose `start_month` is S or later, ends the one that applied in S at the month before S, and adds the new target without end. Removing the target with `null` does the same for S equal to today's month, without adding one, so today's month and every later month have no target. If the current target already has the new target's `type`, `amount` and `by_date`, and its `start_month` is S or earlier, setting it changes nothing: sending 17.2's `PATCH` again leaves its `start_month` at `2026-11`.
+16.4 A category may have many targets over time, but no two apply to the same month. Each target applies from its `start_month` until the month before the next one's `start_month`, or without end if no other target follows it; the category's current target is the one without end, if there is one. Setting a target that starts in month S removes every target of the category whose `start_month` is S or later, ends the one that applied in S at the month before S, and adds the new target without end. Removing the target with `null` does the same for S equal to today's month, without adding one, so today's month and every later month have no target. If the current target already has the new target's `type`, `amount` and `by_date`, and its `start_month` is S or earlier, setting it changes nothing: sending 16.3's `PATCH` again leaves its `start_month` at `2026-11`.
 
-After 17.2's `PATCH`, this keeps the refill target for November and applies a new one from December:
+After 16.3's `PATCH`, this keeps the refill target for November and applies a new one from December:
 
 ```
 PATCH /plans/PLAN_ID/categories/GROCERIES_ID
@@ -328,13 +254,13 @@ PATCH /plans/PLAN_ID/categories/GROCERIES_ID
 
 Sending `{"target": null}` after that removes both targets, since both start in November or later.
 
-17.4 Each month entry (11.3) gets three fields, all `null` for a month that no target applies to. Otherwise:
+16.5 Each month entry (11.3) gets three fields, all `null` for a month that no target applies to. Otherwise:
 
-- `target`: the target that applies that month, as 17.2 returns it.
+- `target`: the target that applies that month, as 16.3 returns it.
 - `due`: the date in that month on the target's `by_date`, or the month's last day when `by_date` is `null` or past the end of the month.
 - `underfunded`: how much more to assign that month. With carryover as in 11.4, a `set_aside` target's is max(0, `amount` - `assigned`), so money carried in or spent never counts. A `refill` target's is max(0, `amount` - carryover - `assigned`), so money carried in counts but money spent that month doesn't.
 
-After 17.2's `PATCH`, November's entry asks for 120000: 400000, less 280000 carried in and 0 assigned. October's entry has `null` for all three, because the target starts in November.
+After 16.3's `PATCH`, November's entry asks for 120000: 400000, less 280000 carried in and 0 assigned. October's entry has `null` for all three, because the target starts in November.
 
 ```
 GET /plans/PLAN_ID/months/2026-11/categories/GROCERIES_ID
@@ -345,12 +271,12 @@ GET /plans/PLAN_ID/months/2026-11/categories/GROCERIES_ID
  "due": "2026-11-15", "underfunded": 120000}
 ```
 
-After 17.3's first `PATCH` as well, December's entry has the set-aside target, `"due": "2026-12-31"` and `"underfunded": 300000`: the 280000 carried in doesn't count. A `by_date` of 31 gives `"due": "2027-02-28"` in February 2027.
+After 16.4's first `PATCH` as well, December's entry has the set-aside target, `"due": "2026-12-31"` and `"underfunded": 300000`: the 280000 carried in doesn't count. A `by_date` of 31 gives `"due": "2027-02-28"` in February 2027.
 
-17.5 Each month (11.6) gets `underfunded`: the sum of its categories' `underfunded`, counting `null` as 0. After 17.2's `PATCH` and a set-aside target of 1200000 on Rent with a `by_date` of 1, November's `underfunded` is 120000: 120000 for Groceries, 0 for Rent (November assigns it 1200000, and its `due` is `2026-11-01`) and `null` for Dining.
+16.6 Each month (11.6) gets `underfunded`: the sum of its categories' `underfunded`, counting `null` as 0. After 16.3's `PATCH` and a set-aside target of 1200000 on Rent with a `by_date` of 1, November's `underfunded` is 120000: 120000 for Groceries, 0 for Rent (November assigns it 1200000, and its `due` is `2026-11-01`) and `null` for Dining.
 
-17.6 Deleting a category (13.1) deletes its targets. With `reassign_to`, its assignments move to that category with their dates and amounts unchanged, which is how 13.3 adds its `assigned` to that category's, and every list of assignments stays in the order they were made. Without `reassign_to`, its assignments are dropped. The other category's targets don't change.
+16.7 Deleting a category (13.1) deletes its targets. With `reassign_to`, its assignments move to that category with their dates and amounts unchanged, which is how 13.3 adds its `assigned` to that category's, and every list of assignments stays in the order they were made. Without `reassign_to`, its assignments are dropped. The other category's targets don't change.
 
-17.7 Schema version 3 (15.8) holds assignments and targets. Upgrading a file to it turns each month's `assigned` for a category, when that isn't 0, into one assignment for the whole amount, dated the first day of the month. Migrating to version 2 drops every target and keeps only each month's total `assigned`, so going back up to version 3 gives one assignment per month, as upgrading does.
+16.8 Schema version 2 (15.8) holds assignments and targets. Upgrading a file from version 1 turns each month's `assigned` for a category, when that isn't 0, into one assignment for the whole amount, dated the first day of the month. Migrating to version 1 drops every target and keeps only each month's total `assigned`, so going back up to version 2 gives one assignment per month, as upgrading does.
 
 ````

@@ -674,4 +674,4 @@ $ mybudget-server migrate "<dir>/Household.sqlite" 1
 
 15.11 The server reads the directory only when it starts. What happens if plan files are added, changed, renamed or removed while it runs, or if two servers use the same directory at once, isn't specified.
 
-<!-- Next: section 16 (scheduled transactions), then 17 (targets). The plan and draft text for both are in spec/ROADMAP.md. -->
+<!-- Next: section 16 (targets). The plan and draft text are in spec/ROADMAP.md. -->
