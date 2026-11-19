@@ -83,6 +83,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 15.7 | Dispute rejected: a file counts as holding a plan only if the server would serve it alone, so a read-only WAL copy it can't use doesn't hide the original; each skipped file's report stays on one line, however its name is escaped. (Implementer dispute, round 7.) |
 | This file's commit | 1.4 | The one second runs from the moment the server starts, including while it loads its data; end of file before it's listening means it exits without the `listening on` line. (Implementer question, round 7.) |
 | `afdb0dd` | 14.2 | An adjustment whose amount would fall outside 3.7's range returns 409 and changes nothing, so every transaction's amount stays in range. (Tester question, round 8.) |
+| This file's commit | 1.4 | Stdin that is an empty file is at end of file from the start, like `/dev/null`; for a file with content, end of file comes when the server's reads reach it, so it may print 1.3's line first. (Tester question, round race-1.) |
 
 ## Token usage
 
