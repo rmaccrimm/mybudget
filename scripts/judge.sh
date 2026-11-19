@@ -15,7 +15,18 @@
 #   2  the test suite or the harness is broken, and a human needs to look
 # Results in $MYBUDGET_CACHE/judge/results: summary.txt (failures by clause, safe for
 # the implementer) and tests.log (every test's result, with output for failures).
+#
+# -v also shows, on stderr, cargo's output as it runs and each test's result as it
+# finishes, with the output of failures. It's for when you run the judge yourself. Don't
+# use it where the implementer reads the output: build errors and failures quote the tests.
 set -euo pipefail
+
+VERBOSE=0
+case "${1-}" in
+  -v) VERBOSE=1 ;;
+  "") ;;
+  *) echo "usage: $0 [-v]" >&2; exit 2 ;;
+esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CACHE="${MYBUDGET_CACHE:-$HOME/.cache/mybudget}"
@@ -30,6 +41,18 @@ SERVER_BIN="$J/run/server-build/target/debug/mybudget-server"
 source "$ROOT/scripts/suite-rules.sh"
 
 git_() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false "$@"; }
+
+# logged <log> <command...>: runs the command with its stderr appended to <log>, which is
+# where cargo writes everything but --message-format=json. With -v it also goes to stderr
+# as it comes. The command's stdout goes wherever the caller sends it.
+logged() {
+  local log="$1"; shift
+  if (( VERBOSE )); then
+    { "$@" 2>&1 >&3 3>&- | tee -a "$log" >&2 3>&-; } 3>&1
+  else
+    "$@" 2>>"$log"
+  fi
+}
 
 # Everywhere the tests, or anything built from them, can be read.
 TESTS=("$J/src/testsuite" "$J/run/tests" "$RES" "$J/deps/tests" "$ROOT/testsuite"
@@ -113,9 +136,9 @@ with_deps() {
   mkdir -p "$work/src"
   # Which source files the package has. Path dependencies would be lane code, so a
   # package with any (it has none) isn't cached.
-  in_sandbox "$step" "$hide" "$STEP_TIMEOUT" cargo metadata --locked --offline \
-      --format-version 1 --manifest-path "$src/Cargo.toml" \
-      >"$work/metadata.json" 2>"$work/metadata.log" || { echo "not cached (cargo metadata failed)"; return 0; }
+  logged "$work/metadata.log" in_sandbox "$step" "$hide" "$STEP_TIMEOUT" cargo metadata \
+      --locked --offline --format-version 1 --manifest-path "$src/Cargo.toml" \
+      >"$work/metadata.json" || { echo "not cached (cargo metadata failed)"; return 0; }
   root="$(jq -r '.resolve.root' "$work/metadata.json")"
   [[ "$(jq '[.packages[] | select(.source == null)] | length' "$work/metadata.json")" == 1 ]] ||
     { echo "not cached (path dependencies)"; return 0; }
@@ -147,10 +170,11 @@ with_deps() {
   # artifacts are cleaned out, or the real build would take the stubs' as up to date.
   pkg="$(jq -r --arg root "$root" '.packages[] | select(.id == $root) | .name' \
     "$work/metadata.json")"
-  if in_sandbox "$step" "$hide" "$STEP_TIMEOUT" "$@" --manifest-path "$work/src/Cargo.toml" \
-      >"$work/build.log" 2>&1 &&
-    in_sandbox "$step" "$hide" "$STEP_TIMEOUT" cargo clean --locked --offline -p "$pkg" \
-      --manifest-path "$work/src/Cargo.toml" >>"$work/build.log" 2>&1 &&
+  if logged "$work/build.log" in_sandbox "$step" "$hide" "$STEP_TIMEOUT" "$@" \
+      --manifest-path "$work/src/Cargo.toml" >>"$work/build.log" &&
+    logged "$work/build.log" in_sandbox "$step" "$hide" "$STEP_TIMEOUT" cargo clean \
+      --locked --offline -p "$pkg" --manifest-path "$work/src/Cargo.toml" \
+      >>"$work/build.log" &&
     [[ -z "$(find "$target" -path "*/.fingerprint/$pkg-*" -print -quit)" ]]; then
     rm -rf "$cache"
     mkdir -p "$cache"
@@ -189,8 +213,8 @@ fi
 # scripts); the sandboxed steps then build offline from these read-only copies.
 cd "$J/src"
 mkdir .cargo
-cargo vendor --locked --manifest-path server/Cargo.toml --sync testsuite/Cargo.toml \
-    vendor >"$RES/vendor.config" 2>"$RES/vendor.log" ||
+logged "$RES/vendor.log" cargo vendor --locked --manifest-path server/Cargo.toml \
+    --sync testsuite/Cargo.toml vendor >"$RES/vendor.config" ||
   finish 2 "harness: cargo vendor failed (see vendor.log)"
 mv "$RES/vendor.config" .cargo/config.toml
 # Vendoring rewrites every file. A fixed old mtime keeps dependency build scripts that
@@ -199,8 +223,8 @@ find vendor -exec touch -h -t 200001010000 {} +
 
 echo "server dependencies: $(with_deps server "$J/run/deps-server" server-build 1 \
     "$J/src/server" cargo build --locked --offline)" >>"$RES/deps.log"
-in_sandbox server-build 1 "$STEP_TIMEOUT" cargo build --locked --offline \
-    --manifest-path server/Cargo.toml >"$RES/server-build.log" 2>&1 ||
+logged "$RES/server-build.log" in_sandbox server-build 1 "$STEP_TIMEOUT" cargo build \
+    --locked --offline --manifest-path server/Cargo.toml >>"$RES/server-build.log" ||
   finish 1 "server build: FAILED" "" "$(grep -v '^ *Compiling ' "$RES/server-build.log" | tail -n 40)"
 
 problem="$(startup_problem)"
@@ -214,9 +238,9 @@ fi
 
 echo "test suite dependencies: $(with_deps tests "$J/run/tests/deps" tests/build 0 \
     "$J/src/testsuite" cargo test --locked --offline --no-run --tests)" >>"$RES/deps.log"
-in_sandbox tests/build 0 "$STEP_TIMEOUT" cargo test --locked --offline --no-run --tests \
-    --message-format=json --manifest-path testsuite/Cargo.toml \
-    >"$J/run/tests/build.json" 2>"$RES/tests-build.log" ||
+logged "$RES/tests-build.log" in_sandbox tests/build 0 "$STEP_TIMEOUT" cargo test --locked \
+    --offline --no-run --tests --message-format=json --manifest-path testsuite/Cargo.toml \
+    >"$J/run/tests/build.json" ||
   finish 2 "server build: ok" "startup: ok" "test suite build: FAILED (see tests-build.log)"
 # Integration tests (tests/*.rs) only; the harness's own unit tests don't count.
 jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.kind == ["test"])
@@ -261,6 +285,18 @@ problems="$(cut -f2 "$J/run/tests/names" | naming_problems "$J/spec.md")"
   finish 2 "server build: ok" "startup: ok" "test suite: these tests break the naming rule:" \
     "$problems"
 
+# show_result <i> <name>: with -v, prints test <i>'s result to stderr as tests.log will
+# have it. One printf, so results from tests that finish together don't mix.
+show_result() {
+  local i="$1" name="$2" text
+  if [[ "$(cat "$OUT/run/$i.rc")" == 0 ]]; then
+    text="== pass $name"
+  else
+    text="== fail $name"$'\n'"$(cat "$OUT/run/$i.out")"$'\n'
+  fi
+  printf '%s\n' "$text" >&2
+}
+
 # Each test runs in its own process and sandbox, with its own scratch directory so
 # servers can't pass state from one test to another; up to JOBS run at once. Its exit
 # status, not its output, decides pass or fail.
@@ -271,7 +307,8 @@ while IFS=$'\t' read -r bin name; do
   ( rc=0
     in_sandbox "tests/run/$i" 0 "$TEST_TIMEOUT" "$bin" --exact "$name" \
         --include-ignored --test-threads 1 </dev/null >"$OUT/run/$i.out" 2>&1 || rc=$?
-    echo "$rc" >"$OUT/run/$i.rc" ) &
+    echo "$rc" >"$OUT/run/$i.rc"
+    if (( VERBOSE )); then show_result "$i" "$name"; fi ) &
 done <"$J/run/tests/names"
 wait
 
