@@ -77,6 +77,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 15.2 | When the name with 8 characters of the id is taken too, the file gets the whole id; if that's taken, the request returns 500. (Implementer question, round 7.) |
 | This file's commit | 15.5 | Only names ending in lowercase `.sqlite` are plan files; `.SQLITE` and other mixes of case are ignored, though they can still clash (15.2). (Tester question, round 7.) |
 | This file's commit | 15.7 | A file skipped for another reason (unreadable, a newer version) never hides another file holding the same plan; only usable files count as duplicates. (Implementer question, round 7.) |
+| This file's commit | 15.7 | Dispute rejected: a file counts as holding a plan only if the server would serve it alone, so a read-only WAL copy it can't use doesn't hide the original; each skipped file's report stays on one line, however its name is escaped. (Implementer dispute, round 7.) |
 
 ## Token usage
 
