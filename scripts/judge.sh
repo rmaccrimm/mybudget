@@ -5,6 +5,9 @@
 # directory, so code from either lane (build scripts, the server, the tests) can't
 # rewrite sources, other steps' binaries or the results. Steps that run only server code
 # can't read the tests either, so what they print is safe to show the implementer.
+# Sandboxed code can't connect to anything but loopback (builds are offline; only the
+# unsandboxed vendoring step uses the network). Seatbelt can't stop a socket bound to
+# 0.0.0.0 from accepting connections from the LAN, so inbound isn't fully closed.
 #
 # Exit status:
 #   0  every test passes
@@ -20,6 +23,9 @@ J="$CACHE/judge"
 RES="$J/results"
 STEP_TIMEOUT="${JUDGE_STEP_TIMEOUT:-900}"  # seconds per build step
 TEST_TIMEOUT="${JUDGE_TEST_TIMEOUT:-60}"   # seconds per test
+# Tests (and test listings) run at once. One per performance core: with one per core
+# (8 here), the plan-file startup tests ran past the suite's 10s startup timeout.
+JOBS="${JUDGE_JOBS:-$(sysctl -n hw.perflevel0.physicalcpu 2>/dev/null || sysctl -n hw.physicalcpu)}"
 SERVER_BIN="$J/run/server-build/target/debug/mybudget-server"
 source "$ROOT/scripts/suite-rules.sh"
 
@@ -30,8 +36,10 @@ TESTS=("$J/src/testsuite" "$J/run/tests" "$RES" "$ROOT/testsuite" "$ROOT/target"
        "$ROOT/.git/modules/testsuite" "$CACHE/tester" "$HOME/.claude/projects")
 
 # sandbox_cmd <step> <hide-tests 0|1> <timeout>: sets CMD to a command prefix that runs
-# with writes limited to $J/run/<step>, a fresh CARGO_HOME and TMPDIR, and a timeout.
-# With hide-tests=1 the command also can't read anything in TESTS.
+# with writes limited to $J/run/<step>, network limited to loopback, a fresh CARGO_HOME
+# and TMPDIR, and a timeout. With hide-tests=1 the command also can't read anything in
+# TESTS. (An "allow network* (local ip ...)" rule would let outbound connections to any
+# host through, so outbound is allowed only by remote address.)
 sandbox_cmd() {
   local w="$J/run/$1" hide_tests="$2" limit="$3" p profile
   mkdir -p "$w/tmp" "$w/cargo-home"
@@ -39,7 +47,10 @@ sandbox_cmd() {
 (allow default)
 (deny file-write*)
 (allow file-write* (subpath "'"$w"'") (literal "/dev/null") (literal "/dev/zero")
-  (literal "/dev/dtracehelper") (regex #"^/dev/tty") (regex #"^/dev/fd/"))'
+  (literal "/dev/dtracehelper") (regex #"^/dev/tty") (regex #"^/dev/fd/"))
+(deny network*)
+(allow network-bind network-inbound (local ip "localhost:*"))
+(allow network-outbound (remote ip "localhost:*"))'
   if (( hide_tests )); then
     for p in "${TESTS[@]}"; do profile+=$'\n''(deny file-read* (subpath "'"$p"'"))'; done
   fi
@@ -134,14 +145,37 @@ in_sandbox tests/build 0 "$STEP_TIMEOUT" cargo test --locked --offline --no-run 
 jq -r 'select(.reason == "compiler-artifact" and .profile.test and .target.kind == ["test"])
        | .executable' "$J/run/tests/build.json" >"$J/run/tests/bins"
 
+# throttle: waits until fewer than JOBS background jobs are running.
+throttle() {
+  while (( $(jobs -rp | wc -l) >= JOBS )); do wait -n || true; done
+}
+
+# Jobs write their output to $OUT, which no sandbox can write to. The shell, not the
+# sandboxed command, opens those files and records each exit status.
+OUT="$J/run/tests/out"
+mkdir -p "$OUT/list" "$OUT/run"
+
 cd "$J/src/testsuite"
-: >"$J/run/tests/names"   # "<binary>\t<test name>" per test
+k=0
 while IFS= read -r bin; do
-  in_sandbox tests/list 0 "$TEST_TIMEOUT" "$bin" --list --format terse </dev/null \
-      >"$J/run/tests/list.out" 2>>"$RES/tests-list.log" ||
+  k=$(( k + 1 ))
+  throttle
+  ( rc=0
+    in_sandbox "tests/list/$k" 0 "$TEST_TIMEOUT" "$bin" --list --format terse </dev/null \
+        >"$OUT/list/$k.out" 2>"$OUT/list/$k.err" || rc=$?
+    echo "$rc" >"$OUT/list/$k.rc" ) &
+done <"$J/run/tests/bins"
+wait
+
+: >"$J/run/tests/names"   # "<binary>\t<test name>" per test
+k=0
+while IFS= read -r bin; do
+  k=$(( k + 1 ))
+  cat "$OUT/list/$k.err" >>"$RES/tests-list.log" 2>/dev/null || true
+  [[ "$(cat "$OUT/list/$k.rc" 2>/dev/null)" == 0 ]] ||
     finish 2 "server build: ok" "startup: ok" \
       "test suite: listing $(basename "$bin") failed (see tests-list.log)"
-  awk -v bin="$bin" 'sub(/: test$/, "") { print bin "\t" $0 }' "$J/run/tests/list.out" \
+  awk -v bin="$bin" 'sub(/: test$/, "") { print bin "\t" $0 }' "$OUT/list/$k.out" \
     >>"$J/run/tests/names"
 done <"$J/run/tests/bins"
 
@@ -150,21 +184,31 @@ problems="$(cut -f2 "$J/run/tests/names" | naming_problems "$J/spec.md")"
   finish 2 "server build: ok" "startup: ok" "test suite: these tests break the naming rule:" \
     "$problems"
 
-# Each test runs alone, with its own scratch directory so servers can't pass state from
-# one test to the next. Its exit status, not its output, decides pass or fail.
+# Each test runs in its own process and sandbox, with its own scratch directory so
+# servers can't pass state from one test to another; up to JOBS run at once. Its exit
+# status, not its output, decides pass or fail.
+i=0
+while IFS=$'\t' read -r bin name; do
+  i=$(( i + 1 ))
+  throttle
+  ( rc=0
+    in_sandbox "tests/run/$i" 0 "$TEST_TIMEOUT" "$bin" --exact "$name" \
+        --include-ignored --test-threads 1 </dev/null >"$OUT/run/$i.out" 2>&1 || rc=$?
+    echo "$rc" >"$OUT/run/$i.rc" ) &
+done <"$J/run/tests/names"
+wait
+
+# Collect the results in the listed order, so tests.log reads the same on every run.
 : >"$RES/tests.log"
 : >"$J/run/tests/results"   # "<clause>\t<pass|fail>" per test
 i=0
 while IFS=$'\t' read -r bin name; do
   i=$(( i + 1 ))
-  rc=0
-  out="$(in_sandbox "tests/run/$i" 0 "$TEST_TIMEOUT" "$bin" --exact "$name" \
-           --include-ignored --test-threads 1 </dev/null 2>&1)" || rc=$?
   result=pass
-  (( rc == 0 )) || result=fail
+  [[ "$(cat "$OUT/run/$i.rc" 2>/dev/null)" == 0 ]] || result=fail
   printf '%s\t%s\n' "$(clause_of "$name")" "$result" >>"$J/run/tests/results"
   printf '== %s %s\n' "$result" "$name" >>"$RES/tests.log"
-  [[ $result == pass ]] || printf '%s\n\n' "$out" >>"$RES/tests.log"
+  [[ $result == pass ]] || { cat "$OUT/run/$i.out"; echo; } >>"$RES/tests.log"
 done <"$J/run/tests/names"
 
 read -r passed failed < <(awk -F'\t' '{ if ($2 == "pass") p++; else f++ }
