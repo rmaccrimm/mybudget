@@ -598,7 +598,7 @@ GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
 
 14.1 `POST /plans/{plan_id}/accounts/{account_id}/reconcile` reconciles the account to the cleared balance its bank reports. `balance`, an amount (3.7), and `date`, a date (3.8), are both required and not nullable. It works on any account, closed (5.8) or tracking included. It returns `200` with the account (5.4, after the changes below) and the adjustment it made, or `null` if it made none.
 
-14.2 If `balance` differs from the account's `cleared_balance`, the server first adds an adjustment: amount `balance` - `cleared_balance`, dated `date`, payee `Reconciliation Balance Adjustment` (found or created as in 6.5), memo `null`, `cleared` `"reconciled"`, `approved` true, no flag. Its category is `ready_to_assign` in an on-budget account; in a tracking account it has none.
+14.2 If `balance` differs from the account's `cleared_balance`, the server first adds an adjustment: amount `balance` - `cleared_balance`, dated `date`, payee `Reconciliation Balance Adjustment` (found or created as in 6.5), memo `null`, `cleared` `"reconciled"`, `approved` true, no flag. Its category is `ready_to_assign` in an on-budget account; in a tracking account it has none. If the adjustment's amount would be outside 3.7's range, the request returns 409 and changes nothing, so every transaction's amount stays in that range.
 
 14.3 Then every transaction in the account whose `cleared` is `"cleared"` becomes `"reconciled"`.
 
