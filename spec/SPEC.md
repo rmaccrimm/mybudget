@@ -85,7 +85,7 @@ When more than one applies, the first of `405`, `404`, `400`, `409` wins; `500` 
 
 3.12 A list endpoint returns a JSON array, in the order its clause gives.
 
-3.13 The server may refuse a body it can't reasonably handle, even when the trouble is in a field it would ignore. A body over 1 MiB (1048576 bytes) may get `413`, whatever else is wrong with the request. A body that nests arrays and objects more than 64 deep, or holds a number too large for a 64-bit float, may get `400`. Within those limits, a field the endpoint ignores may hold any JSON value.
+3.13 The server may refuse a body it can't reasonably handle, even when the trouble is in a field it would ignore. A body over 1 MiB (1048576 bytes) may get `413`, whatever else is wrong with the request, except that the import endpoints (17.1) take bodies up to 16 MiB (16777216 bytes). A body that nests arrays and objects more than 64 deep, or holds a number too large for a 64-bit float, may get `400`. Within those limits, a field the endpoint ignores may hold any JSON value.
 
 ## 4. Plans
 
@@ -324,7 +324,7 @@ POST /plans/PLAN_ID/transactions
 
 8.2 For a transaction that is neither a transfer (section 9) nor a split (section 10), `category_id` depends on the account:
 
-- In an on-budget account it is required: a user category's id, or `ready_to_assign`. In a cash account, `ready_to_assign` marks income. In a credit account it marks a change in what's owed that doesn't touch the plan, such as a statement credit.
+- In an on-budget account it is a user category's id, `ready_to_assign`, or `null`, the default, which leaves the transaction uncategorized (section 16). In a cash account, `ready_to_assign` marks income. In a credit account it marks a change in what's owed that doesn't touch the plan, such as a statement credit.
 - In a tracking account it must be `null` or absent.
 
 A payment category's id is never allowed. Anything else returns 400.
@@ -412,11 +412,11 @@ GET /plans/PLAN_ID/transactions/IN_ID
 9.3 Categories on transfers:
 
 - Between two on-budget accounts, or two tracking accounts, neither half has a category, and a non-null `category_id` returns 400.
-- Between an on-budget account and a tracking account, money enters or leaves the plan. The on-budget half follows 8.2 for its account, so it needs a category, and the tracking half has none. The `category_id` of a `POST` or `PATCH` sets the on-budget half's category, whichever half the request is for. A `PATCH` to the tracking half that leaves `category_id` out keeps the on-budget half's category, even when it moves that half to another on-budget account (9.5). When there was no on-budget half before the `PATCH`, there's no category to keep, so the request needs a `category_id`.
+- Between an on-budget account and a tracking account, money enters or leaves the plan. The on-budget half follows 8.2 for its account, so it has a category or is uncategorized (section 16), and the tracking half has none. The `category_id` of a `POST` or `PATCH` sets the on-budget half's category, whichever half the request is for. A `PATCH` to the tracking half that leaves `category_id` out keeps the on-budget half's category, even when it moves that half to another on-budget account (9.5). When there was no on-budget half before the `PATCH`, there's no category to keep, so without a `category_id` the on-budget half is uncategorized.
 
 9.4 Changing `date` or `amount` on either half changes the other to match: the same date and the opposite amount. `memo`, `cleared`, `approved` and `flag_color` belong to the half they're set on.
 
-9.5 Changing a transfer's payee to one that isn't a transfer payee, or to `null`, deletes the other half. Changing it to another account's transfer payee deletes the other half and creates a new one in that account, as 9.1 says. Changing an ordinary transaction's payee to a transfer payee creates the other half, as 9.1 says. 8.6 applies to the result: for example, an on-budget account's half left without a transfer needs a category in the same request.
+9.5 Changing a transfer's payee to one that isn't a transfer payee, or to `null`, deletes the other half. Changing it to another account's transfer payee deletes the other half and creates a new one in that account, as 9.1 says. Changing an ordinary transaction's payee to a transfer payee creates the other half, as 9.1 says. 8.6 applies to the result: for example, an on-budget account's half left without a transfer keeps its `null` category, and so is uncategorized, unless the same request gives one.
 
 9.6 Deleting either half deletes both.
 
@@ -438,11 +438,11 @@ POST /plans/PLAN_ID/transactions
                      {"amount": -30000, "category_id": "HOUSEHOLD_ID", "memo": "light bulbs"}]}
 ```
 
-10.2 Each subtransaction's `category_id` follows 8.2 for the transaction's account. Splits aren't allowed in tracking accounts (400).
+10.2 Each subtransaction's `category_id` follows 8.2 for the transaction's account, except that it can't be `null`: a subtransaction is never uncategorized. Splits aren't allowed in tracking accounts (400).
 
 10.3 Responses list subtransactions in the order they were given, each with `amount`, `category_id` and `memo`. A transaction that isn't a split has `"subtransactions": []`.
 
-10.4 A `PATCH` with `subtransactions` replaces all of them. An empty array makes the transaction an ordinary one again, so in an on-budget account the same request needs a `category_id` (8.2). 8.6 applies: for example, changing a split's `amount` without matching subtransactions returns 400.
+10.4 A `PATCH` with `subtransactions` replaces all of them. An empty array makes the transaction an ordinary one again; in an on-budget account it is uncategorized (section 16) unless the same request gives a `category_id`. 8.6 applies: for example, changing a split's `amount` without matching subtransactions returns 400.
 
 ## 11. Months and Ready to Assign
 
@@ -481,7 +481,7 @@ GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
 - `activity`: the sum of every user category's `activity` for the month.
 - `cash_overspending_last_month`: the sum of every category's `cash_overspending` in the previous month.
 - `left_over_from_last_month`, `assigned_in_future` and `ready_to_assign`: see 11.7.
-- `categories`: every category's month entry, group by group in the order of 7.1, payment categories included.
+- `categories`: every category's month entry, group by group in the order of 7.1, payment categories included. Uncategorized money has its own field (16.3).
 
 11.7 For each month M, let net(M) be `income` + `cash_advances` - `assigned` for M. Then:
 
@@ -661,7 +661,7 @@ GET /plans
 
 15.7 At startup, a `.sqlite` file the server can't use is skipped: the server doesn't serve it or change it, writes one line to stderr naming the file and the reason, and starts as usual. How it writes a name holding a line break or other control character is up to the server, as long as the whole report stays on one line. That covers a file that isn't a plan file the server can read, one whose schema version (15.8) is newer than the server knows, and two or more files holding the same plan, as when a file has been copied: all of those are skipped. Only files the server could otherwise use count as holding a plan: a file counts only if the server would serve it were it the only file in the directory, so a file skipped for another reason never causes another file to be skipped. A skipped file's name still counts as taken (15.2).
 
-15.8 A plan file records its schema version in SQLite's `user_version`; a database whose `user_version` is less than 1 isn't a plan file (15.7). Version 1 holds all the data that sections 1 to 13 define. A later section that adds data to keep says which version holds it and what migrating below that version drops; a section that adds no new kind of data adds no version. At startup the server upgrades every plan file with an older version to its latest before serving it. A file it can't upgrade is skipped (15.7) and left as it was.
+15.8 A plan file records its schema version in SQLite's `user_version`; a database whose `user_version` is less than 1 isn't a plan file (15.7). Version 1 holds all the data that sections 1 to 14 and 16 define. A later section that adds data to keep says which version holds it and what migrating below that version drops; a section that adds no new kind of data adds no version. At startup the server upgrades every plan file with an older version to its latest before serving it. A file it can't upgrade is skipped (15.7) and left as it was.
 
 15.9 `mybudget-server migrate <file> <version>` changes a plan file to that schema version, older or newer, and exits with status 0 without listening or reading `MYBUDGET_DATA`. Going down drops only what the older version can't hold, as the section that added it says, and going back up then restores everything else exactly. Migrating a file to its own version changes nothing. If the file isn't a plan file, if its version is newer than the server knows, or if `<version>` isn't an integer from 1 to the server's latest version, the command writes a message to stderr, exits with a non-zero status and leaves the file as it was. With no arguments the server serves as section 1 says; what it does with other arguments isn't specified.
 
@@ -674,4 +674,232 @@ $ mybudget-server migrate "<dir>/Household.sqlite" 1
 
 15.11 The server reads the directory only when it starts. What happens if plan files are added, changed, renamed or removed while it runs, or if two servers use the same directory at once, isn't specified.
 
-<!-- Next: section 16 (targets). The plan and draft text are in spec/ROADMAP.md. -->
+## 16. Uncategorized transactions
+
+A bank doesn't know your categories, so a transaction can come in before it has one. It counts in the plan while it waits, as money in a category nothing was assigned to.
+
+16.1 A transaction is uncategorized when it is in an on-budget account, its `category_id` is `null`, and it is neither a split nor a transfer between two on-budget accounts. The on-budget half of a transfer to or from a tracking account can be uncategorized; both halves then have `"category_id": null`. 8.2, 9.3, 9.5 and 10.4 say when a transaction is left without a category; a subtransaction never is (10.2).
+
+16.2 In sections 11 and 12, uncategorized transactions are the lines (11.1) of one more user category, Uncategorized, whose `assigned` is always 0. So it has `activity`, `available` and overspending like any user category, it counts in its month's `activity` and in the next month's `cash_overspending_last_month`, and it funds credit card spending as 12.2 says. Uncategorized cash spending comes out of next month's Ready to Assign as cash overspending. Uncategorized credit card spending that Uncategorized can't fund becomes debt, and moves nothing into the card's payment category. An uncategorized inflow stays in Uncategorized, carrying into later months, until it is categorized; it isn't `income`.
+
+16.3 Each month (11.6) has `uncategorized`: Uncategorized's month entry, with `"category_id": null`. It isn't in the month's `categories`, and it has no path of its own.
+
+16.4 8.5's list takes the query parameter `uncategorized`: `true` lists only uncategorized transactions, and `false` only the others. Any other value returns 400.
+
+```
+GET /plans/PLAN_ID/transactions?uncategorized=true
+→ 200
+[{"id": "POWER_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-20", "amount": -64990,
+  "payee_id": "POWER_PAYEE_ID", "category_id": null, "memo": null,
+  "cleared": "cleared", "approved": false, "flag_color": null,
+  "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}]
+```
+
+(This is the plan after 17.7's import, where the transaction also has `import`.)
+
+16.5 Example. Checking starts with 1000.00 and Visa (a credit card) with 0, both on 2026-10-01, and Groceries is the plan's only user category. October assigns 300.00 to Groceries. With no category, Checking spends 50.00 on 2026-10-10, Visa spends 40.00 on 2026-10-12, and Checking receives 20.00 on 2026-10-15. Uncategorized's funds (12.2) are 0 + 0 - 50.00 + 20.00 = -30.00, so none of Visa's 40.00 is funded: it is credit overspending, and the other 30.00 is cash overspending.
+
+```
+GET /plans/PLAN_ID/months/2026-10
+→ 200
+{"month": "2026-10", "income": 1000000, "cash_advances": 0, "assigned": 300000,
+ "activity": -70000, "cash_overspending_last_month": 0, "left_over_from_last_month": 0,
+ "assigned_in_future": 0, "ready_to_assign": 700000,
+ "uncategorized": {"category_id": null, "assigned": 0, "activity": -70000, "available": -70000,
+                   "cash_overspending": 30000, "credit_overspending": 40000},
+ "categories": [
+  {"category_id": "VISA_PAYMENT_ID", "assigned": 0, "activity": 0, "available": 0,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "GROCERIES_ID", "assigned": 300000, "activity": 0, "available": 300000,
+   "cash_overspending": 0, "credit_overspending": 0}]}
+
+GET /plans/PLAN_ID/months/2026-11
+→ 200
+{"month": "2026-11", "income": 0, "cash_advances": 0, "assigned": 0,
+ "activity": 0, "cash_overspending_last_month": 30000, "left_over_from_last_month": 700000,
+ "assigned_in_future": 0, "ready_to_assign": 670000,
+ "uncategorized": {"category_id": null, "assigned": 0, "activity": 0, "available": 0,
+                   "cash_overspending": 0, "credit_overspending": 0},
+ "categories": [
+  {"category_id": "VISA_PAYMENT_ID", "assigned": 0, "activity": 0, "available": 0,
+   "cash_overspending": 0, "credit_overspending": 0},
+  {"category_id": "GROCERIES_ID", "assigned": 0, "activity": 0, "available": 300000,
+   "cash_overspending": 0, "credit_overspending": 0}]}
+```
+
+Categorizing the 50.00 to Groceries afterwards (8.6) leaves Uncategorized's October funds at 20.00, which funds 20.00 of Visa's spending. October's Uncategorized entry then has `activity` -20000, `available` -20000, `credit_overspending` 20000 and `cash_overspending` 0; Visa's payment category has `activity` and `available` 20000; Groceries has `activity` -50000 and `available` 250000; and November's `cash_overspending_last_month` is 0 and its `ready_to_assign` 700000.
+
+## 17. Importing OFX files
+
+Banks export statements as OFX files; a QFX file is an OFX file with some extra elements for Quicken. An import adds a file's transactions to the plan's accounts. It skips any the account has imported before, and matches each of the rest to a transaction entered by hand where it can, so that nothing is entered twice.
+
+17.1 `POST /plans/{plan_id}/imports/preview` reads a file and returns what's in it (17.6), changing nothing. `POST /plans/{plan_id}/imports` imports it (17.7). Both take `file`, required: the file's bytes in base64, using RFC 4648's standard alphabet with `=` padding and no white space. Anything else in `file`, or a file that isn't OFX as 17.2 to 17.5 describe, returns 400. Both endpoints take bodies up to 16 MiB (3.13).
+
+17.2 A file is OFX 1.x or OFX 2.x. A UTF-8 byte order mark at its start is skipped, and so is any white space before the first header.
+
+- OFX 1.x starts with header lines `KEY:VALUE`, the first being `OFXHEADER:100`, which run until the first `<`. Its text is UTF-8 when a header is `ENCODING:UTF-8`, and Windows-1252 otherwise, whatever `CHARSET` says.
+- OFX 2.x starts with `<?xml` or `<?OFX`. Its text is in the XML declaration's `encoding`, or UTF-8 if there is no declaration or no `encoding`. The encoding may be UTF-8 or Windows-1252, named by any label the WHATWG Encoding Standard gives them, matched ignoring ASCII case, so `utf8`, `cp1252` and `iso-8859-1` are allowed. Any other encoding returns 400.
+
+Both encodings are decoded as the WHATWG Encoding Standard says: in UTF-8, a byte or run of bytes that isn't valid reads as U+FFFD, and in Windows-1252 every byte reads as some character, the five Windows-1252 leaves undefined as the control characters with their codes.
+
+17.3 After the headers, the file is a tree of elements, read the same way in 1.x and 2.x.
+
+- A start tag is `<NAME>` and an end tag `</NAME>`. Element names match ignoring ASCII case. Comments (`<!-- ... -->`) and processing instructions (`<? ... ?>`) are skipped wherever they are. What the server does with other markup, such as attributes or CDATA sections, isn't specified.
+- An element ends at its end tag, and holds everything between. An element with no end tag of its own before its parent's ends holds only the text up to the next `<`, which may be empty, as OFX 1.x writes `<TRNAMT>-64.99` with no `</TRNAMT>`. An end tag that closes no open element returns 400.
+- A value is the text an element holds directly. In it, `&lt;`, `&gt;`, `&amp;`, `&quot;`, `&apos;`, `&nbsp;`, and numeric references such as `&#38;` and `&#x26;`, become the characters they name; any other `&` stays as it is, so `AT&T` reads as `AT&T`. Then white space (Unicode `White_Space`) is trimmed from both ends. A value left empty counts as absent.
+- Elements that 17.4 doesn't name are ignored, with everything inside them. When an element 17.4 names appears more than once where it expects one, the first counts.
+
+17.4 The file's statements are its `STMTRS` elements (bank statements) and `CCSTMTRS` elements (credit card statements), wherever they are, in the order they appear. A file with none returns 400. In each statement, these are read, and the rest ignored:
+
+- `CURDEF`, the currency code: optional.
+- The account: in a bank statement, `BANKACCTFROM`, holding `BANKID` (optional), `ACCTID` (required) and `ACCTTYPE` (optional); in a credit card statement, `CCACCTFROM`, holding `ACCTID` (required).
+- `BANKTRANLIST`, optional, holding `DTSTART` and `DTEND` (both optional) and the statement's transactions, its `STMTTRN` elements, in order. Without it the statement has no transactions.
+- `LEDGERBAL`, optional, holding `BALAMT` and `DTASOF` (both optional): the balance the bank reports.
+
+Each `STMTTRN` holds `TRNTYPE` (optional), `DTPOSTED` (required), `TRNAMT` (required), `FITID` (optional), `NAME` (optional; when it is absent, the `NAME` inside a `PAYEE` element, if there is one) and `MEMO` (optional). A required element that's absent, or a date or amount that isn't as 17.5 says, returns 400.
+
+17.5 A date value starts with eight digits, `YYYYMMDD`, naming a date in 3.8's range; anything after them, such as a time or `[-5:EST]`, is ignored, so the date is the one written, whatever its time zone. An amount value is an optional `+` or `-` followed by digits, with at most one `.` or `,` among them and at least one digit in all; `-64.99`, `+1800`, `12,5` and `.5` are amounts, and `1,234.56` isn't. It becomes milliunits (3.7), rounded half away from zero beyond three decimal places, so `-64.99` is `-64990`. An amount outside 3.7's range returns 400.
+
+17.6 The preview returns `200` with `statements`, one object per statement in file order:
+
+- `type`: `"bank"` or `"credit_card"`.
+- `bank_id`, `account_number`, `account_type`: `BANKID`, `ACCTID` and `ACCTTYPE` as strings, or `null` when absent. `bank_id` and `account_type` are always `null` for a credit card statement.
+- `currency_code`: `CURDEF`, or `null`.
+- `start_date`, `end_date`: `DTSTART` and `DTEND` as dates, or `null`.
+- `ledger_balance`, `ledger_balance_date`: `BALAMT` as an amount and `DTASOF` as a date, or `null`.
+- `account_id`, `swap_payee_memo`, `invert_amounts`: what the last import of a statement with the same `type`, `bank_id` and `account_number` into this plan used (17.13), or `null`, `false` and `false` if there was none or its account has been deleted.
+- `transactions`: one object per `STMTTRN`, in order, with `import_id` (17.8), `type` (`TRNTYPE`, or `null`), `date`, `amount`, `name` and `memo` (or `null`), as the file has them, before 17.7's options.
+
+```
+(the file, in Windows-1252; the lines before <BANKMSGSRSV1> are shortened)
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+ENCODING:USASCII
+CHARSET:1252
+
+<OFX>
+<SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS></SONRS></SIGNONMSGSRSV1>
+<BANKMSGSRSV1><STMTTRNRS><TRNUID>1<STMTRS>
+<CURDEF>USD
+<BANKACCTFROM><BANKID>021000021<ACCTID>000123456789<ACCTTYPE>CHECKING</BANKACCTFROM>
+<BANKTRANLIST><DTSTART>20261001<DTEND>20261031
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261005120000.000[-5:EST]<TRNAMT>-120.00
+<FITID>202610050001<NAME>CORNER SHOP #42<MEMO>POS PURCHASE</STMTTRN>
+<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261015<TRNAMT>1800.00<FITID>202610150001
+<NAME>ACME PAYROLL</STMTTRN>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261020<TRNAMT>-64.99<FITID>202610200001
+<NAME>CITY POWER & LIGHT</STMTTRN>
+</BANKTRANLIST>
+<LEDGERBAL><BALAMT>4115.01<DTASOF>20261031</LEDGERBAL>
+</STMTRS></STMTTRNRS></BANKMSGSRSV1>
+</OFX>
+
+POST /plans/PLAN_ID/imports/preview
+{"file": "T0ZYSEVBREVSOjEwMApEQVRBOk9GWFNHTUwK..."}
+→ 200
+{"statements": [
+  {"type": "bank", "bank_id": "021000021", "account_number": "000123456789",
+   "account_type": "CHECKING", "currency_code": "USD",
+   "start_date": "2026-10-01", "end_date": "2026-10-31",
+   "ledger_balance": 4115010, "ledger_balance_date": "2026-10-31",
+   "account_id": null, "swap_payee_memo": false, "invert_amounts": false,
+   "transactions": [
+    {"import_id": "202610050001", "type": "DEBIT", "date": "2026-10-05", "amount": -120000,
+     "name": "CORNER SHOP #42", "memo": "POS PURCHASE"},
+    {"import_id": "202610150001", "type": "CREDIT", "date": "2026-10-15", "amount": 1800000,
+     "name": "ACME PAYROLL", "memo": null},
+    {"import_id": "202610200001", "type": "DEBIT", "date": "2026-10-20", "amount": -64990,
+     "name": "CITY POWER & LIGHT", "memo": null}]}]}
+```
+
+17.7 The import takes `file` and `statements`, both required. `statements` is an array with one entry per statement in the file, in the same order; any other length returns 400. An entry is `null`, to skip that statement, or an object with:
+
+- `account_id`, required: one of the plan's accounts. A closed account (5.8) or a tracking account is allowed.
+- `swap_payee_memo`, a boolean, default `false`: take the payee from `MEMO` and the memo from `NAME`, for banks that put the merchant in `MEMO`.
+- `invert_amounts`, a boolean, default `false`: change the sign of every amount, for banks that write spending as positive.
+- `not_duplicates`, an array of import ids (strings), default `[]`: bank transactions with these ids skip 17.9's check for the same amount and a nearby date, for when that check is wrong, as with two equal purchases a day apart.
+
+The statements are imported in order, and each statement's transactions in order. Each bank transaction is a duplicate (17.9), is matched to a transaction already in the account (17.10), or creates a new one (17.11). The response is `200` with `statements`, one entry per entry of the request's: `null` for a skipped statement, and otherwise an object with `account_id`, `imported` (the transactions created, in order), `matched` (the transactions matched, in the order they were matched) and `duplicates` (the bank transactions skipped as duplicates, 17.9). Every transaction in the response is as it is after the whole import.
+
+In a plan where Checking has a starting balance of 2500.00 and holds only one other transaction, 8.1's uncleared Corner Shop transaction, importing 17.6's file into Checking matches the bank's Corner Shop transaction to it and creates the other two:
+
+```
+POST /plans/PLAN_ID/imports
+{"file": "T0ZYSEVBREVSOjEwMApEQVRBOk9GWFNHTUwK...", "statements": [{"account_id": "CHECKING_ID"}]}
+→ 200
+{"statements": [
+  {"account_id": "CHECKING_ID", "duplicates": [],
+   "matched": [
+    {"id": "SHOP_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-04", "amount": -120000,
+     "payee_id": "CORNER_SHOP_ID", "category_id": "GROCERIES_ID", "memo": "weekly shop",
+     "cleared": "cleared", "approved": true, "flag_color": null,
+     "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": [],
+     "import": {"id": "202610050001", "date": "2026-10-05", "amount": -120000,
+                "payee_name": "CORNER SHOP #42", "memo": "POS PURCHASE", "matched": true}}],
+   "imported": [
+    {"id": "PAYROLL_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-15", "amount": 1800000,
+     "payee_id": "ACME_PAYROLL_ID", "category_id": "ready_to_assign", "memo": null,
+     "cleared": "cleared", "approved": false, "flag_color": null,
+     "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": [],
+     "import": {"id": "202610150001", "date": "2026-10-15", "amount": 1800000,
+                "payee_name": "ACME PAYROLL", "memo": null, "matched": false}},
+    {"id": "POWER_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-20", "amount": -64990,
+     "payee_id": "POWER_PAYEE_ID", "category_id": null, "memo": null,
+     "cleared": "cleared", "approved": false, "flag_color": null,
+     "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": [],
+     "import": {"id": "202610200001", "date": "2026-10-20", "amount": -64990,
+                "payee_name": "CITY POWER & LIGHT", "memo": null, "matched": false}}]}]}
+```
+
+Checking's `balance` is now 4115010, the statement's `ledger_balance`. Importing the same file again skips all three: the statement's entry has `"matched": []`, `"imported": []`, and `duplicates` listing the three bank transactions, with `transaction_id` `SHOP_TXN_ID`, `PAYROLL_TXN_ID` and `POWER_TXN_ID`. Previewing it gives `"account_id": "CHECKING_ID"`.
+
+17.8 A bank transaction's data is what 17.6 shows, after the statement's options:
+
+- `import_id`: its `FITID`. Without one, it is the amount in milliunits as the file has it, the date and a count, joined by `:`, such as `-120000:2026-10-05:1`, where the count is 1 plus the number of transactions earlier in the statement that have no `FITID` and the same amount and date.
+- `date`; and `amount`, with its sign changed when `invert_amounts` is true.
+- `payee_name`: the value of `NAME`, or of `MEMO` when `swap_payee_memo` is true, cut to its first 200 characters (3.9) and trimmed again; `null` if absent or left empty.
+- `memo`: the value of `MEMO`, or of `NAME` when `swap_payee_memo` is true, cut to its first 500 characters; `null` if absent.
+
+17.9 Every transaction has `import`: `null` for one entered through the API, and otherwise an object with the bank transaction's `id` (its `import_id`), `date`, `amount`, `payee_name` and `memo`, and `matched`, which is true when it was matched to a transaction already in the account (17.10). Only imports and 17.14 change it; 8.6 ignores it. Each account keeps every import id it has had, from transactions imported or matched in it, even after they are deleted or unmatched. A bank transaction is a duplicate, and is skipped, when:
+
+- its import id is one the account has had, including from earlier in the same import; or
+- unless its import id is in the statement's `not_duplicates`, the account holds a transaction that was imported or matched before this import began (its `import` isn't `null`), with the same amount and a date no more than 2 days before or after the bank transaction's, which no other bank transaction in this import is a duplicate of. This catches a bank that changes a transaction's `FITID`, as some do when a pending transaction posts.
+
+In each statement, the first check runs over all its transactions before the second, which then takes them in order; when several transactions are possible, the one whose date is closest wins, and then the one created first. Only the first check's ids count as had, so a bank transaction the second check skips is checked again by the next import. `duplicates` lists each duplicate as its bank data (17.8), with `id` for its import id, and `transaction_id`: the transaction it duplicates. For the first check, that is the account's transaction whose `import` has that id, or `null` if none is left; for the second, the one it was paired with.
+
+```
+{"id": "202610050001", "date": "2026-10-05", "amount": -120000,
+ "payee_name": "CORNER SHOP #42", "memo": "POS PURCHASE", "transaction_id": "SHOP_TXN_ID"}
+```
+
+17.10 A bank transaction that isn't a duplicate matches a transaction in the same account whose `import` is `null`, whose payee isn't named `Starting Balance` or `Reconciliation Balance Adjustment` (5.3, 14.2), whose amount is the same as the bank transaction's, and whose date is no more than 10 days before or after the bank transaction's. Its `cleared` can be anything, and splits and transfer halves can match. If several can, the one whose date is closest wins, and then the one created first. The matched transaction's `import` becomes the bank transaction's data, with `matched` true, its `cleared` becomes `"cleared"` if it was `"uncleared"`, and its `approved` becomes true; nothing else about it changes, so it keeps its own date, payee, memo and category. A transfer's other half doesn't change.
+
+17.11 A bank transaction that is neither a duplicate nor matched creates a transaction in the account with the bank transaction's `date`, `amount` and `memo`; the payee named `payee_name`, found or created as in 6.5 (so never a transfer payee), or no payee when that is `null`; `cleared` `"cleared"`; `approved` false; no flag; no subtransactions; and `import` with `matched` false. Its category is in 17.12. Transactions are created in the order they're in the file, so 8.5 lists those with the same date in that order.
+
+17.12 In a tracking account, an imported transaction has no category. In an on-budget account, it takes the `category_id` of the most recently created transaction in the plan with the same payee whose `category_id` isn't `null`. If the transaction has no payee, or no such transaction exists, its category is `ready_to_assign` when its amount is positive and the account is a cash account, and otherwise `null`, so it is uncategorized (section 16).
+
+17.13 For each statement it imports, an import remembers its `account_id`, `swap_payee_memo` and `invert_amounts` under the statement's `type`, `bank_id` and `account_number`, replacing what it remembered before for them. 17.6's preview returns them.
+
+17.14 `POST /plans/{plan_id}/transactions/{transaction_id}/unmatch` undoes a match, as when two transactions with the same amount were matched the wrong way round. It takes an empty object. It returns 409 unless the transaction's `import` has `matched` true. Otherwise its `import` becomes `null`, and nothing else about it changes, `cleared` included; and the bank transaction is created as a new transaction, as 17.11 and 17.12 say, with the same import id; it isn't a duplicate. The response is `200` with `transaction`, the transaction as it is now, and `imported`, the new one.
+
+```
+POST /plans/PLAN_ID/transactions/SHOP_TXN_ID/unmatch
+{}
+→ 200
+{"transaction": {"id": "SHOP_TXN_ID", "account_id": "CHECKING_ID", "date": "2026-10-04",
+                 "amount": -120000, "payee_id": "CORNER_SHOP_ID", "category_id": "GROCERIES_ID",
+                 "memo": "weekly shop", "cleared": "cleared", "approved": true, "flag_color": null,
+                 "transfer_account_id": null, "transfer_transaction_id": null,
+                 "subtransactions": [], "import": null},
+ "imported": {"id": "SHOP_IMPORT_ID", "account_id": "CHECKING_ID", "date": "2026-10-05",
+              "amount": -120000, "payee_id": "CORNER_SHOP_42_ID", "category_id": null,
+              "memo": "POS PURCHASE", "cleared": "cleared", "approved": false, "flag_color": null,
+              "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": [],
+              "import": {"id": "202610050001", "date": "2026-10-05", "amount": -120000,
+                         "payee_name": "CORNER SHOP #42", "memo": "POS PURCHASE", "matched": false}}}
+```
+
+17.15 Schema version 2 (15.8) holds every transaction's `import`, the import ids each account has had (17.9) and what 17.13 remembers. Migrating to version 1 drops all of them: transactions keep every other field and get `"import": null`, and a later import treats every bank transaction as new.
+
+<!-- Next: section 18 (targets). The plan and draft text are in spec/ROADMAP.md. -->
