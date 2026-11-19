@@ -1,0 +1,7 @@
+Fix a race in SPEC 1.4, with no change to the spec.
+
+The judge now runs four tests at once, so the server often starts on a busy machine. Since that change, SPEC 1.4's tests for a server whose stdin is at end of file from the start (`/dev/null`, or a pipe whose write end closed before the server started) fail intermittently: run one at a time on an idle machine they passed 30 of 30 runs, and with the CPU busy they failed 16 of 30. In the failing runs the server printed `listening on 127.0.0.1:<port>` before exiting. 1.4 (and its ruling in spec/ROADMAP.md) says end of file before the server is listening means it exits with status 0 without printing that line.
+
+The cause is in src/main.rs: `exit_on_stdin_eof` starts a thread that reads stdin, and `run` goes straight on to `open_store` and `serve`, which binds and prints the line. Nothing makes the main thread wait for the watcher's verdict, so on a busy machine the print can win the race even though end of file was already there.
+
+Make the outcome deterministic: when stdin is at end of file before the server would print `listening on`, it must never print it, however the threads are scheduled. A pipe or socket that simply has nothing waiting (blocking or non-blocking) isn't end of file and mustn't delay or stop startup; the rest of 1.4 (exit within one second of end of file, from startup on; ignoring what it reads; non-blocking stdin) must keep holding. Every test passes today apart from this, and must still pass.
