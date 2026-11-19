@@ -1,6 +1,6 @@
 # Roadmap: the remaining rounds
 
-This is for the agent that resumes the work. The goal is a server that replicates YNAB's core budgeting, specified in `SPEC.md` and built one round at a time by the tester and implementer (see `README.md` for how rounds work). Sections 3 to 18 were drafted together from research into YNAB; this file holds the plan for the rounds still to run, the rules for running them, and the draft text of the sections not yet in `SPEC.md`.
+This is for the agent that resumes the work. The goal is a server that replicates YNAB's core budgeting, specified in `SPEC.md` and built one round at a time by the tester and implementer (see `README.md` for how rounds work). Sections 3 to 17 were drafted together from research into YNAB; this file holds the plan for the rounds still to run, the rules for running them, and the draft text of the sections not yet in `SPEC.md`.
 
 ## Where things stand (2026-11-18)
 
@@ -33,7 +33,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
    - Anything else: `lane.sh` stopped, for example because an agent left its lane. Read the log.
 5. To settle a question or dispute, change `SPEC.md` and commit, quoting the question in the message. Then rerun `round.sh` with the same task followed by `Tests for them already exist. Since the last run, <what changed>.` A rerun starts again with the tester revising its tests, then runs the judge, the implementer and the attacks.
    - Rule yourself on HTTP, JSON and validation edge cases. Prefer a general rule in section 3 to a one-off, and keep the server's current behaviour when it's reasonable.
-   - Ask the human before any ruling that changes budget behaviour (sections 11 to 18) or goes against a decision listed below.
+   - Ask the human before any ruling that changes budget behaviour (sections 11 to 17) or goes against a decision listed below.
    - For a dispute, read the clause's tests (`grep -rn spec_5_2_ testsuite/tests`) and their output in `~/.cache/mybudget/judge/results/tests.log`. If the tests ask too much, name them in the rerun's task so the tester fixes them. Only the tester edits `testsuite/`.
 6. An attack that finds nothing new ends the round, even if it also raises a question. Settle the question, run `scripts/judge.sh` (under `caffeinate -i`) to confirm everything passes, and move on. Round 1 ended this way.
 7. When the round is complete, run `scripts/usage.sh <n>` and add its totals to the token usage table below, in the same commit as the "round N is complete" note. If the round added a migration, also record its checksums in the same commit: `cd server && shasum -a 256 migrations/*/*.sql > ../spec/migrations.sha256`. The judge fails any later change to a migration listed there.
@@ -53,7 +53,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 - For each `PATCH`: which fields can change, whether a field it can't change is ignored (3.6) or rejected because the change is never allowed (3.4), and what a `PATCH` that sets a field to its current value does.
 - For each request field: required or optional, nullable or not (3.10), and its format. 3.7 to 3.9 define amounts, dates and names.
 - References to sections that aren't pasted yet: reword them, or keep the tester off them in the task.
-- Behaviour that changes from an earlier round: say so in the task, so the tester updates its older tests. Known cases: section 13 defines `DELETE` on a category (405 until then); 16.6 extends 5.9 and 6.4; section 17 adds `target` to categories and `underfunded` to month entries; section 18 adds `age_of_money` to months.
+- Behaviour that changes from an earlier round: say so in the task, so the tester updates its older tests. Known cases: section 13 defines `DELETE` on a category (405 until then); 16.6 extends 5.9 and 6.4; section 17 adds `target` to categories and `underfunded` to month entries.
 - Data to keep: since section 15, a section that adds a new kind of data says which schema version (15.8) holds it and what migrating below that version drops. Its round's task says the new data must persist and migrate both ways. Section 14 adds no new kind of data; section 16's scheduled transactions are the first, as version 2.
 
 ## Rulings so far
@@ -112,7 +112,6 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | 8 | 14 | `SPEC section 14 (reconciliation). Its data persists like the rest (section 15).` | Adds no schema version. Paste it before section 15 in `SPEC.md`, to keep the sections in order. |
 | 9 | 16 | `SPEC section 16 (scheduled transactions)` | Needs 15: a test moves "today" by restarting with a new `MYBUDGET_TODAY`. Tests should always set it. Scheduled transactions are schema version 2, the first with a real down migration: add to 16 what migrating to version 1 drops. |
 | 10 | 17 | `SPEC section 17 (targets)` | Only after the human answers open questions 1 to 3. |
-| 11 | 18 | `SPEC section 18 (age of money)` | Only after the human answers open question 4. |
 
 ## Decisions the draft makes
 
@@ -140,17 +139,17 @@ YNAB doesn't decide these, or doesn't fit an HTTP contract. Keep rulings consist
 - Loan accounts and YNAB's built-in Credit Card Interest category.
 - Payees on individual subtransactions, and transfers inside a split.
 - Importing and matching bank transactions, payee locations, money-movement history, undo, delta sync, ordering of categories and groups, month notes, and most of YNAB's target types.
+- Age of Money. The human dropped it on 2026-11-19; the app doesn't need it.
 
-Possible sections after 18: moving money between categories in one request, ordering categories and groups, month notes, bulk import with an `import_id` so a transaction imported twice is entered once, delta sync for the app, and the items above.
+Possible sections after 17: moving money between categories in one request, ordering categories and groups, month notes, bulk import with an `import_id` so a transaction imported twice is entered once, delta sync for the app, and the items above.
 
 ## Open questions for the human
 
-Settle these before pasting sections 17 and 18. Nothing earlier depends on them.
+Settle these before pasting section 17. Nothing earlier depends on them.
 
 1. **When does a target start?** The draft applies a target to every month, including months before it was set. YNAB targets start in a given month and can be snoozed. An option is a `start_month` field, defaulting to the month the target was set ("this month" from `MYBUDGET_TODAY`).
 2. **What does a `by_date` target do after its month?** The draft says it needs nothing more. YNAB can repeat it, for example yearly.
 3. **Do targets count spending?** The draft's `set_aside` ignores spending and `refill` looks only at the carried-over balance. That matches YNAB's "Set aside another" and "Refill up to". YNAB's "Have a balance of" also counts this month's spending; the draft has no such target.
-4. **Age of Money details.** YNAB describes it as the average age of the last ten cash outflows, card payments included, transfers and starting balances excluded, but doesn't publish the algorithm. The draft's first-in, first-out queue is the usual reading. Rounding, split lines counted separately, and outflows made before any income are guesses.
 
 ## How YNAB keeps its books
 
@@ -171,11 +170,11 @@ Sources:
   - Ready to Assign and months: `the-plan-header-BkmiuJ_C9`, `assigning-future-income-an-overview-BJsTo0jCq`, `when-ready-to-assign-is-negative-an-overview-HylZA0zCc`, `overspending-and-the-monthly-rollover-S1ySgcLSMx`.
   - Credit cards: `credit-cards-funded-spending-By7XIs8HMg`, `credit-card-overspending-an-overview-HkMGpSbJs`, `credit-card-refunds-and-returns-H1J7qDWkj`, `credit-card-cash-advances-an-overview-Hy6PmlOC9`, `credit-card-rewards-and-statement-credits-a-guide-ryoRzYY0q`, `credit-cards-with-a-positive-balance-an-overview-By_H6uzJo`.
   - Transactions, accounts and categories: `transfer-transactions-a-guide-HJOsZz4Jj`, `split-transactions-a-guide-SJLEKwY0q`, `reconciling-accounts-a-guide-BJFE3fHys`, `balance-adjustments-a-guide-rko4OwILs`, `how-to-close-or-delete-an-account-in-ynab-ry_409Gko`, `adding-removing-and-customizing-categories-a-guide-HJFO5j909`, `scheduled-transactions-a-guide-BygrAIFA9`.
-  - Targets and Age of Money: `how-to-use-targets-rk5kkI9ks`, `underfunded-a-guide-BJwPhQO09`, `age-of-money-H1ZS84W1s`.
+  - Targets: `how-to-use-targets-rk5kkI9ks`, `underfunded-a-guide-BJwPhQO09`.
 
 ## How the examples were checked
 
-The numbers in the examples in 11.8, 12.7, 13.3, 17.2 and 18.3 were checked against a small Python model of sections 11 and 12. The model also reproduced YNAB's documented cases:
+The numbers in the examples in 11.8, 12.7, 13.3 and 17.2 were checked against a small Python model of sections 11 and 12. The model also reproduced YNAB's documented cases:
 
 - assigning ahead with nothing left to assign (the later month goes negative, not the current one)
 - new income covering an over-assignment
@@ -189,9 +188,9 @@ The numbers in the examples in 11.8, 12.7, 13.3, 17.2 and 18.3 were checked agai
 
 The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. The recurrence dates in 16.4 and 16.5 were generated the same way.
 
-## Appendix: draft sections 14 and 16 to 18
+## Appendix: draft sections 14, 16 and 17
 
-Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them. Sections 17 and 18 wait for the open questions above.
+Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them. Section 17 waits for the open questions above.
 
 ````markdown
 ## 14. Reconciliation
@@ -294,7 +293,7 @@ GET /plans/PLAN_ID/scheduled_transactions/RENT_SCHEDULE_ID
 
 16.6 Deleting an account (5.9) also deletes the scheduled transactions in it and those that transfer to it. A payee that a scheduled transaction uses counts as in use (6.4), and a category that one uses counts as used (13.2) and is reassigned along with transactions (13.3).
 
-<!-- DRAFT: settle the open questions in spec/ROADMAP.md before pasting sections 17 and 18, and don't paste this comment. -->
+<!-- DRAFT: settle the open questions in spec/ROADMAP.md before pasting section 17, and don't paste this comment. -->
 
 ## 17. Targets
 
@@ -333,13 +332,4 @@ A `by_date` target of 600000 for `2027-03` asks 100000 of October (600000 over 6
 
 17.3 Each month (11.6) gets `underfunded`: the sum of its categories' `underfunded`, counting `null` as 0.
 
-## 18. Age of Money
-
-18.1 Money in is every line in a cash account with a positive amount, except the half of a transfer from another cash account. Money out is every line in a cash account with a negative amount, except the half of a transfer to another cash account and a starting balance (5.3).
-
-18.2 Money in and money out are taken in date order, money in first within a date, then oldest first. Each money in joins the back of a queue. Each money out takes its size from the front of the queue, partly using up a money in if it needs to. Its age is the average, weighted by amount, of the days from each money in it took from to its own date, rounded down. Any part it can't take because the queue is empty is ignored, and a money out that took nothing has no age.
-
-18.3 Each month (11.6) gets `age_of_money`: the average of the ages of the last 10 money outs with an age dated on or before the month's last day, rounded down; `null` if there are fewer than 10.
-
-Example: Checking starts with 1000.00 on 2026-09-01, gets 1000.00 of income on 2026-10-01, and spends 100.00 on each day from 2026-10-01 to 2026-10-10. All ten come out of September's 1000.00, aged 30 to 39 days, so October's `age_of_money` is `34` (34.5 rounded down) and September's is `null`.
 ````
