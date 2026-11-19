@@ -635,7 +635,7 @@ GET /plans
 
 15.6 Between requests, each plan's file is a complete database on its own: no `-journal`, `-wal` or `-shm` file is left beside it.
 
-15.7 At startup, a `.sqlite` file the server can't use is skipped: the server doesn't serve it or change it, writes a line to stderr naming the file and the reason, and starts as usual. That covers a file that isn't a plan file the server can read, one whose schema version (15.8) is newer than the server knows, and two or more files holding the same plan, as when a file has been copied: all of those are skipped. A skipped file's name still counts as taken (15.2).
+15.7 At startup, a `.sqlite` file the server can't use is skipped: the server doesn't serve it or change it, writes a line to stderr naming the file and the reason, and starts as usual. That covers a file that isn't a plan file the server can read, one whose schema version (15.8) is newer than the server knows, and two or more files holding the same plan, as when a file has been copied: all of those are skipped. Only files the server could otherwise use count as holding a plan: a file skipped for another reason never causes another file to be skipped. A skipped file's name still counts as taken (15.2).
 
 15.8 A plan file records its schema version in SQLite's `user_version`; a database whose `user_version` is less than 1 isn't a plan file (15.7). Version 1 holds all the data that sections 1 to 13 define. A later section that adds data to keep says which version holds it and what migrating below that version drops; a section that adds no new kind of data adds no version. At startup the server upgrades every plan file with an older version to its latest before serving it. A file it can't upgrade is skipped (15.7) and left as it was.
 

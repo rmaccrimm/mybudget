@@ -76,6 +76,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 15.2, 15.8 | Anything in the directory with a plan file's name, a folder included, makes it clash; a database with `user_version` below 1 isn't a plan file. (Readings the tester flagged in round 7.) |
 | This file's commit | 15.2 | When the name with 8 characters of the id is taken too, the file gets the whole id; if that's taken, the request returns 500. (Implementer question, round 7.) |
 | This file's commit | 15.5 | Only names ending in lowercase `.sqlite` are plan files; `.SQLITE` and other mixes of case are ignored, though they can still clash (15.2). (Tester question, round 7.) |
+| This file's commit | 15.7 | A file skipped for another reason (unreadable, a newer version) never hides another file holding the same plan; only usable files count as duplicates. (Implementer question, round 7.) |
 
 ## Token usage
 
