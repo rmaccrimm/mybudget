@@ -84,6 +84,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 1.4 | The one second runs from the moment the server starts, including while it loads its data; end of file before it's listening means it exits without the `listening on` line. (Implementer question, round 7.) |
 | `afdb0dd` | 14.2 | An adjustment whose amount would fall outside 3.7's range returns 409 and changes nothing, so every transaction's amount stays in range. (Tester question, round 8.) |
 | This file's commit | 1.4 | Stdin that is an empty file is at end of file from the start, like `/dev/null`; for a file with content, end of file comes when the server's reads reach it, so it may print 1.3's line first. (Tester question, round race-1.) |
+| This file's commit | 1.4 | Widened: stdin with nothing left to read (`/dev/null`, an empty file, a pipe or socket closed empty) is at end of file from the start; with anything left to read, end of file comes when the server's reads reach it, so the line may come first. A closed writer behind megabytes of data looks like a live one until it's read, so no server can tell in time. (Implementer dispute, round race-1.) |
 
 ## Token usage
 
