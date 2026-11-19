@@ -15,7 +15,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Clause 1.4 was added for the macOS app** (`app/`), so the server it bundles exits when the app dies. It's opt-in, through `MYBUDGET_EXIT_ON_STDIN_EOF=1`, because the judge's startup check runs the server with stdin `/dev/null`.
 - **Round app-1 (clause 1.4) is complete.** The judge passed 809 of 809 tests at superproject commit `67a7709` (testsuite `a1ba732`, server `b624e62`), in two runs of `round.sh`. The first run's attack found that the server took an empty read on non-blocking stdin for end of file, and asked whether that was allowed; the ruling says it isn't. The rerun's implementer run fixed it, and the last attack (stdin that never ends, long quiet stretches, a full pipe closed, a parent that exits) found nothing new. `lane.sh` no longer requires a clean `app/` or watches it, because the app session works there during rounds, and it commits only its lane in the superproject.
 - **Persistence was pulled forward (2026-11-18).** The human asked for section 15 before 14, rewritten: one SQLite file per plan, named after the plan, with schema migrations that each have a down and a `migrate` command to run them (see "Decisions the draft makes"). Section 15 is in `SPEC.md`, with changes to 3.2 and 3.4 (a `500` for a failed save) and 3.5 (ids become version 4 UUIDs). Section 14 keeps its number.
-- **Round 7 (section 15) is next**, with the task in `spec/round-7.md`: `MYBUDGET_ROUND=7 caffeinate -i scripts/round.sh "$(cat spec/round-7.md)"`. When it completes, record the checksums of `server/migrations/` so later rounds can't change version 1 (see the plan below).
+- **Round 7 (section 15) is complete.** The judge passed 916 of 916 tests at the superproject commit that records this (testsuite `9e1e35c`, server `0f09776`), after nine runs of `round.sh`: four stopped on questions, two on a dispute and three on usage limits (resumed with `START=judge`). The rulings settled what clashes with a plan file's name and the fallback to the whole id (15.2), lowercase `.sqlite` only (15.5), which files count as duplicates (15.7, a dispute upheld), and that 1.4's one second runs from startup. The round ended at the two-attack limit, not on a clean attack: the last two attacks still found bugs (a startup check that deleted user folders with the server's scratch prefix, `migrate` failing in a read-only folder, half-made plan files after a kill), all fixed. Expect section 15 to have more corners; a later round's attacks may find them. Version 1's migration is now fixed: `spec/migrations.sha256` holds its checksums and the judge fails any change to it. The round cost $59.62, the most so far.
+- **Round 8 (section 14) is next**, with the task in the rounds table below. Paste section 14 before section 15 in `SPEC.md`.
 
 ## How to run a round
 
@@ -35,7 +36,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
    - Ask the human before any ruling that changes budget behaviour (sections 11 to 18) or goes against a decision listed below.
    - For a dispute, read the clause's tests (`grep -rn spec_5_2_ testsuite/tests`) and their output in `~/.cache/mybudget/judge/results/tests.log`. If the tests ask too much, name them in the rerun's task so the tester fixes them. Only the tester edits `testsuite/`.
 6. An attack that finds nothing new ends the round, even if it also raises a question. Settle the question, run `scripts/judge.sh` (under `caffeinate -i`) to confirm everything passes, and move on. Round 1 ended this way.
-7. When the round is complete, run `scripts/usage.sh <n>` and add its totals to the token usage table below, in the same commit as the "round N is complete" note.
+7. When the round is complete, run `scripts/usage.sh <n>` and add its totals to the token usage table below, in the same commit as the "round N is complete" note. If the round added a migration, also record its checksums in the same commit: `cd server && shasum -a 256 migrations/*/*.sql > ../spec/migrations.sha256`. The judge fails any later change to a migration listed there.
+8. If an agent run is cut off (a usage limit, a crash), its lane may have uncommitted files; move them out of the submodule so `lane.sh` can start, then resume with `START=judge`, which judges the committed code and carries on with fixes and attacks.
 
 For a refactor, where the spec doesn't change, start with `START=implementer` so the implementer runs first; the judge and the tester's attacks then follow as usual. Write the brief in a file under `spec/` and pass its text as the task: `START=implementer MYBUDGET_ROUND=refactor-1 caffeinate -i scripts/round.sh "$(cat spec/refactor-1.md)"`.
 
@@ -82,7 +84,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 
 ## Token usage
 
-`lane.sh` appends each agent run's usage to `~/.cache/mybudget/usage.jsonl`, and `round.sh` prints the round's totals when it exits. `scripts/usage.sh [round]` sums them by round and role. Tokens are summed over every model the session used; cache reads are the bulk of the input. Cost is Claude Code's list-price estimate. A run killed before it finishes (a usage limit, a crash) records nothing. Rounds 1 and 2 ran before tracking and left no transcripts. Rounds 1 to 4 ran both agents on Opus 5.5 at high effort, from the human's own settings. From round 5 the tester runs at xhigh (`effortLevel` in `roles/tester.json`, which `lane.sh` passes as `--effort`), and each line in `usage.jsonl` records its effort.
+`lane.sh` appends each agent run's usage to `~/.cache/mybudget/usage.jsonl`, and `round.sh` prints the round's totals when it exits. `scripts/usage.sh [round]` sums them by round and role. Tokens are summed over every model the session used; cache reads are the bulk of the input. Cost is Claude Code's list-price estimate. A run killed before it finishes (a usage limit, a crash) records nothing. Rounds 1 and 2 ran before tracking and left no transcripts. Rounds 1 to 4 ran both agents on Opus 5.5 at high effort, from the human's own settings. From round 5 the tester runs at xhigh (`effortLevel` in `roles/tester.json`, which `lane.sh` passes as `--effort`), and each line in `usage.jsonl` records its effort. During round 7 the human set the tester back to high.
 
 | Round | Agent runs (tester / implementer) | Input | Output | Cache read | Cache write | Est. cost (USD) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -94,6 +96,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | refactor-1 | 1 / 2 | 184 | 174,767 | 12,087,108 | 483,818 | 9.78 |
 | 6 | 2 / 1 | 128 | 120,653 | 5,747,449 | 389,243 | 6.68 |
 | app-1 | 4 / 2 | 210 | 175,618 | 7,101,894 | 430,880 | 8.38 |
+| 7 | 12 / 10 | 1,350 | 1,056,864 | 77,068,862 | 2,883,407 | 59.62 |
 
 ## The rounds
 

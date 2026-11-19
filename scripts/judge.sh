@@ -95,6 +95,15 @@ for sm in server testsuite; do
 done
 git_ -C "$ROOT" show HEAD:spec/SPEC.md >"$J/spec.md"
 
+# A migration a finished round shipped never changes (roles/implementer.md):
+# spec/migrations.sha256 lists each one's checksum, recorded when its round completed.
+if git_ -C "$ROOT" cat-file -e HEAD:spec/migrations.sha256 2>/dev/null; then
+  git_ -C "$ROOT" show HEAD:spec/migrations.sha256 >"$J/migrations.sha256"
+  if ! changed="$(cd "$J/src/server" && shasum -a 256 -c --quiet "$J/migrations.sha256" 2>&1)"; then
+    finish 1 "migrations: a migration from an earlier round changed or is missing" "" "$changed"
+  fi
+fi
+
 # Vendor every dependency up front. No lane code runs here (vendoring doesn't run build
 # scripts); the sandboxed steps then build offline from these read-only copies.
 cd "$J/src"
