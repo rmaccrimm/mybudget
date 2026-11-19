@@ -32,8 +32,8 @@ source "$ROOT/scripts/suite-rules.sh"
 git_() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false "$@"; }
 
 # Everywhere the tests, or anything built from them, can be read.
-TESTS=("$J/src/testsuite" "$J/run/tests" "$RES" "$ROOT/testsuite" "$ROOT/target"
-       "$ROOT/.git/modules/testsuite" "$CACHE/tester" "$HOME/.claude/projects")
+TESTS=("$J/src/testsuite" "$J/run/tests" "$RES" "$J/deps/tests" "$ROOT/testsuite"
+       "$ROOT/target" "$ROOT/.git/modules/testsuite" "$CACHE/tester" "$HOME/.claude/projects")
 
 # sandbox_cmd <step> <hide-tests 0|1> <timeout>: sets CMD to a command prefix that runs
 # with writes limited to $J/run/<step>, network limited to loopback, a fresh CARGO_HOME
@@ -99,7 +99,77 @@ startup_problem() {
   exec {fd}<&-
 }
 
-rm -rf "$J"
+# with_deps <name> <work dir> <step> <hide-tests 0|1> <src dir> <cargo command...>
+# Most of a build is the dependencies, which change only with Cargo.toml, Cargo.lock or
+# the toolchain. So the build in <step> starts from a copy of a target directory in which
+# only the dependencies were built: from <src dir>'s manifest and lockfile, with every
+# source file replaced by an empty stub, so no lane code ran there. $J/deps/<name> holds
+# that directory and is written only from such builds; lane code writes only its clone.
+# Prints how the dependencies were prepared. Any problem means an ordinary clean build.
+DEPS_VERSION=1
+with_deps() {
+  local name="$1" work="$2" step="$3" hide="$4" src="$5"; shift 5
+  local target="$J/run/$step/target" cache="$J/deps/$name" root pkg key kind path rel
+  mkdir -p "$work/src"
+  # Which source files the package has. Path dependencies would be lane code, so a
+  # package with any (it has none) isn't cached.
+  in_sandbox "$step" "$hide" "$STEP_TIMEOUT" cargo metadata --locked --offline \
+      --format-version 1 --manifest-path "$src/Cargo.toml" \
+      >"$work/metadata.json" 2>"$work/metadata.log" || { echo "not cached (cargo metadata failed)"; return 0; }
+  root="$(jq -r '.resolve.root' "$work/metadata.json")"
+  [[ "$(jq '[.packages[] | select(.source == null)] | length' "$work/metadata.json")" == 1 ]] ||
+    { echo "not cached (path dependencies)"; return 0; }
+  cp "$src/Cargo.toml" "$src/Cargo.lock" "$work/src/"
+  jq -r --arg root "$root" '.packages[] | select(.id == $root) | .targets[]
+      | [(.kind | join(",")), .src_path] | @tsv' "$work/metadata.json" >"$work/targets"
+  while IFS=$'\t' read -r kind path; do
+    rel="${path#"$src"/}"
+    [[ $rel != /* && $rel != *..* ]] || { echo "not cached (a target outside the package)"; return 0; }
+    mkdir -p "$work/src/$(dirname "$rel")"
+    case ",$kind," in
+      *,bin,* | *,test,* | *,bench,* | *,example,* | *,custom-build,*) echo 'fn main() {}' ;;
+      *) : ;;
+    esac >"$work/src/$rel"
+  done <"$work/targets"
+
+  key="$( { echo "$DEPS_VERSION"; printf '%s\n' "$@"; rustc -vV; cargo -V
+            cd "$work/src" && find . -type f | LC_ALL=C sort | xargs shasum -a 256
+          } | shasum -a 256 | cut -d' ' -f1)"
+  rm -rf "$target"
+  if [[ -f $cache/key && "$(cat "$cache/key")" == "$key" ]]; then
+    cp -cR "$cache/target" "$target" ||
+      { rm -rf "$target"; echo "not cached (copying the cache failed)"; return 0; }
+    echo "cached"
+    return 0
+  fi
+  # Cargo identifies a path package relative to its workspace, so the stub package and
+  # the real one share artifacts, and the stubs are newer than the real sources. Its own
+  # artifacts are cleaned out, or the real build would take the stubs' as up to date.
+  pkg="$(jq -r --arg root "$root" '.packages[] | select(.id == $root) | .name' \
+    "$work/metadata.json")"
+  if in_sandbox "$step" "$hide" "$STEP_TIMEOUT" "$@" --manifest-path "$work/src/Cargo.toml" \
+      >"$work/build.log" 2>&1 &&
+    in_sandbox "$step" "$hide" "$STEP_TIMEOUT" cargo clean --locked --offline -p "$pkg" \
+      --manifest-path "$work/src/Cargo.toml" >>"$work/build.log" 2>&1 &&
+    [[ -z "$(find "$target" -path "*/.fingerprint/$pkg-*" -print -quit)" ]]; then
+    rm -rf "$cache"
+    mkdir -p "$cache"
+    if cp -cR "$target" "$cache/target"; then
+      echo "$key" >"$cache/key"   # written last: a cache without it is never used
+      echo "built and cached"
+    else
+      rm -rf "$cache"
+      echo "built, but saving the cache failed"
+    fi
+  else
+    rm -rf "$target"
+    echo "not cached (building or cleaning the stubs failed; see $work/build.log)"
+  fi
+}
+
+# Start from nothing but the dependency caches.
+mkdir -p "$J"
+find "$J" -mindepth 1 -maxdepth 1 ! -name deps -exec rm -rf {} +
 mkdir -p "$J/src/server" "$J/src/testsuite" "$J/run/tests" "$RES"
 for sm in server testsuite; do
   git_ -C "$ROOT/$sm" archive HEAD | tar -x -C "$J/src/$sm"
@@ -123,7 +193,12 @@ cargo vendor --locked --manifest-path server/Cargo.toml --sync testsuite/Cargo.t
     vendor >"$RES/vendor.config" 2>"$RES/vendor.log" ||
   finish 2 "harness: cargo vendor failed (see vendor.log)"
 mv "$RES/vendor.config" .cargo/config.toml
+# Vendoring rewrites every file. A fixed old mtime keeps dependency build scripts that
+# watch their sources (rerun-if-changed) from rerunning on every judge.
+find vendor -exec touch -h -t 200001010000 {} +
 
+echo "server dependencies: $(with_deps server "$J/run/deps-server" server-build 1 \
+    "$J/src/server" cargo build --locked --offline)" >>"$RES/deps.log"
 in_sandbox server-build 1 "$STEP_TIMEOUT" cargo build --locked --offline \
     --manifest-path server/Cargo.toml >"$RES/server-build.log" 2>&1 ||
   finish 1 "server build: FAILED" "" "$(grep -v '^ *Compiling ' "$RES/server-build.log" | tail -n 40)"
@@ -137,6 +212,8 @@ if [[ -n $problem ]]; then
   finish 1 "${summary[@]}"
 fi
 
+echo "test suite dependencies: $(with_deps tests "$J/run/tests/deps" tests/build 0 \
+    "$J/src/testsuite" cargo test --locked --offline --no-run --tests)" >>"$RES/deps.log"
 in_sandbox tests/build 0 "$STEP_TIMEOUT" cargo test --locked --offline --no-run --tests \
     --message-format=json --manifest-path testsuite/Cargo.toml \
     >"$J/run/tests/build.json" 2>"$RES/tests-build.log" ||
