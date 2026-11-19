@@ -594,6 +594,30 @@ GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
 
 13.4 Once deleted, the category no longer exists: its paths, its month entries included, return 404, and a body field or `reassign_to` naming it returns 400. It's left out of 7.1's lists, its group's `categories`, and every month's `categories`. The other categories keep their order.
 
+## 14. Reconciliation
+
+14.1 `POST /plans/{plan_id}/accounts/{account_id}/reconcile` reconciles the account to the cleared balance its bank reports. `balance`, an amount (3.7), and `date`, a date (3.8), are both required and not nullable. It works on any account, closed (5.8) or tracking included. It returns `200` with the account (5.4, after the changes below) and the adjustment it made, or `null` if it made none.
+
+14.2 If `balance` differs from the account's `cleared_balance`, the server first adds an adjustment: amount `balance` - `cleared_balance`, dated `date`, payee `Reconciliation Balance Adjustment` (found or created as in 6.5), memo `null`, `cleared` `"reconciled"`, `approved` true, no flag. Its category is `ready_to_assign` in an on-budget account; in a tracking account it has none.
+
+14.3 Then every transaction in the account whose `cleared` is `"cleared"` becomes `"reconciled"`.
+
+```
+POST /plans/PLAN_ID/accounts/CHECKING_ID/reconcile
+{"balance": 2375500, "date": "2026-10-31"}
+→ 200
+{"account": {"id": "CHECKING_ID", "name": "Checking", "type": "checking", "on_budget": true,
+             "closed": false, "note": null, "balance": 2340500, "cleared_balance": 2375500,
+             "uncleared_balance": -35000, "transfer_payee_id": "CHECKING_PAYEE_ID",
+             "payment_category_id": null},
+ "adjustment": {"id": "ADJUSTMENT_ID", "account_id": "CHECKING_ID", "date": "2026-10-31",
+                "amount": -4500, "payee_id": "ADJUSTMENT_PAYEE_ID", "category_id": "ready_to_assign",
+                "memo": null, "cleared": "reconciled", "approved": true, "flag_color": null,
+                "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}}
+```
+
+(Before this, Checking had its 2500.00 starting balance, a cleared -120.00 and an uncleared -35.00.)
+
 ## 15. Persistence
 
 Without `MYBUDGET_DATA`, the server keeps its data only in memory, as the earlier sections assume. This section covers the server with it set.
@@ -650,4 +674,4 @@ $ mybudget-server migrate "<dir>/Household.sqlite" 1
 
 15.11 The server reads the directory only when it starts. What happens if plan files are added, changed, renamed or removed while it runs, or if two servers use the same directory at once, isn't specified.
 
-<!-- Next: section 14 (reconciliation). Paste it before section 15, so the sections stay in order. The plan and draft text for every later round are in spec/ROADMAP.md. -->
+<!-- Next: section 16 (scheduled transactions), then 17 (targets). The plan and draft text for both are in spec/ROADMAP.md. -->

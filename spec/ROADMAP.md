@@ -16,7 +16,7 @@ This is for the agent that resumes the work. The goal is a server that replicate
 - **Round app-1 (clause 1.4) is complete.** The judge passed 809 of 809 tests at superproject commit `67a7709` (testsuite `a1ba732`, server `b624e62`), in two runs of `round.sh`. The first run's attack found that the server took an empty read on non-blocking stdin for end of file, and asked whether that was allowed; the ruling says it isn't. The rerun's implementer run fixed it, and the last attack (stdin that never ends, long quiet stretches, a full pipe closed, a parent that exits) found nothing new. `lane.sh` no longer requires a clean `app/` or watches it, because the app session works there during rounds, and it commits only its lane in the superproject.
 - **Persistence was pulled forward (2026-11-18).** The human asked for section 15 before 14, rewritten: one SQLite file per plan, named after the plan, with schema migrations that each have a down and a `migrate` command to run them (see "Decisions the draft makes"). Section 15 is in `SPEC.md`, with changes to 3.2 and 3.4 (a `500` for a failed save) and 3.5 (ids become version 4 UUIDs). Section 14 keeps its number.
 - **Round 7 (section 15) is complete.** The judge passed 916 of 916 tests at the superproject commit that records this (testsuite `9e1e35c`, server `0f09776`), after nine runs of `round.sh`: four stopped on questions, two on a dispute and three on usage limits (resumed with `START=judge`). The rulings settled what clashes with a plan file's name and the fallback to the whole id (15.2), lowercase `.sqlite` only (15.5), which files count as duplicates (15.7, a dispute upheld), and that 1.4's one second runs from startup. The round ended at the two-attack limit, not on a clean attack: the last two attacks still found bugs (a startup check that deleted user folders with the server's scratch prefix, `migrate` failing in a read-only folder, half-made plan files after a kill), all fixed. Expect section 15 to have more corners; a later round's attacks may find them. Version 1's migration is now fixed: `spec/migrations.sha256` holds its checksums and the judge fails any change to it. The round cost $59.62, the most so far.
-- **Round 8 (section 14) is next**, with the task in the rounds table below. Paste section 14 before section 15 in `SPEC.md`.
+- **Round 8 (section 14) is running.** Section 14 is in `SPEC.md`, before section 15, with 14.1 tightened (required fields, closed and tracking accounts, `200`).
 
 ## How to run a round
 
@@ -186,35 +186,11 @@ The numbers in the examples in 11.8, 12.7, 13.3 and 17.2 were checked against a 
 
 The model isn't in the repo, because the agents can read `spec/`. With a reference implementation, the implementer could skip the spec, and ambiguities the tester should surface would stay hidden. If you change sections 11 or 12, recheck those examples by hand or with a fresh model kept outside the repo. The recurrence dates in 16.4 and 16.5 were generated the same way.
 
-## Appendix: draft sections 14, 16 and 17
+## Appendix: draft sections 16 and 17
 
 Paste-ready text for the later rounds. Each round pastes its sections from here into `SPEC.md`, without the four-backtick fence around them.
 
 ````markdown
-## 14. Reconciliation
-
-14.1 `POST /plans/{plan_id}/accounts/{account_id}/reconcile` with `balance`, an amount, and `date` reconciles the account to the cleared balance its bank reports. It returns the account and the adjustment it made, or `null` if it made none.
-
-14.2 If `balance` differs from the account's `cleared_balance`, the server first adds an adjustment: amount `balance` - `cleared_balance`, dated `date`, payee `Reconciliation Balance Adjustment` (found or created as in 6.5), memo `null`, `cleared` `"reconciled"`, `approved` true, no flag. Its category is `ready_to_assign` in an on-budget account; in a tracking account it has none.
-
-14.3 Then every transaction in the account whose `cleared` is `"cleared"` becomes `"reconciled"`.
-
-```
-POST /plans/PLAN_ID/accounts/CHECKING_ID/reconcile
-{"balance": 2375500, "date": "2026-10-31"}
-→ 200
-{"account": {"id": "CHECKING_ID", "name": "Checking", "type": "checking", "on_budget": true,
-             "closed": false, "note": null, "balance": 2340500, "cleared_balance": 2375500,
-             "uncleared_balance": -35000, "transfer_payee_id": "CHECKING_PAYEE_ID",
-             "payment_category_id": null},
- "adjustment": {"id": "ADJUSTMENT_ID", "account_id": "CHECKING_ID", "date": "2026-10-31",
-                "amount": -4500, "payee_id": "ADJUSTMENT_PAYEE_ID", "category_id": "ready_to_assign",
-                "memo": null, "cleared": "reconciled", "approved": true, "flag_color": null,
-                "transfer_account_id": null, "transfer_transaction_id": null, "subtransactions": []}}
-```
-
-(Before this, Checking had its 2500.00 starting balance, a cleared -120.00 and an uncleared -35.00.)
-
 ## 16. Scheduled transactions
 
 16.1 Today is the date in the environment variable `MYBUDGET_TODAY` (`YYYY-MM-DD`) if it is set, and otherwise the current date in the server's local time zone.
