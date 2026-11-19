@@ -50,3 +50,10 @@ The submodule URLs are relative (`../mybudget-server.git` and so on), so they re
 - The lanes rely on Claude Code's sandbox (macOS Seatbelt) and the judge relies on `sandbox-exec`. Both are macOS-only as configured here.
 - Hiding the tests is best effort. The read-deny lists cover the places copies are known to end up. If you copy tests anywhere else, add that path to `roles/implementer.json` and to `TESTS` in `scripts/judge.sh`.
 - Nothing here stops an implementation that detects test conditions at runtime. Hidden tests make that hard, and reading the implementer's diffs is the backstop.
+- The server under test can read the tests. In the judge's test runs the sandbox can't hide `testsuite/`, because the test binaries read it and the server inherits their sandbox. The server also can't write anywhere outside its own scratch folder or reach any network but loopback, and the implementer only sees failures by clause.
+- A sandboxed step can still accept connections from the LAN if it listens on `0.0.0.0`. Seatbelt can't filter that while allowing loopback.
+- The server has only been built and tested on macOS. That matters most for SPEC 1.4's stdin handling (`server/src/main.rs`, `StdinWatch`), which macOS shaped: `poll` doesn't report a closed named pipe or `/dev/null`, so the server reads stdin non-blocking instead. Before running the server on Linux (for the web client, say), run the 1.4 tests there under CPU load (`testsuite/tests/process*.rs`). Things to watch:
+  - Linux doesn't report `POLLHUP` for a half-closed socket either, so a change that brings `poll` back would break there. An earlier fix did use it.
+  - A Linux pipe can be raised above the 1 MiB that `MORE_THAN_A_PIPE_HOLDS` assumes. The spec allows the line to come first then, but the comment would be wrong.
+  - The test suite sets `O_NONBLOCK` per OS and works around macOS lacking `pipe2`.
+  - The judge itself needs `sandbox-exec`, so it can't run on Linux.
