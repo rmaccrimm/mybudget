@@ -90,6 +90,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 1.4 | Stdin that is an empty file is at end of file from the start, like `/dev/null`; for a file with content, end of file comes when the server's reads reach it, so it may print 1.3's line first. (Tester question, round race-1.) |
 | This file's commit | 1.4 | Widened: stdin with nothing left to read (`/dev/null`, an empty file, a pipe or socket closed empty) is at end of file from the start; with anything left to read, end of file comes when the server's reads reach it, so the line may come first. A closed writer behind megabytes of data looks like a live one until it's read, so no server can tell in time. (Implementer dispute, round race-1.) |
 | This file's commit | 3.13, 8.2, 9.3, 9.5, 10.2, 10.4, 11.6, 15.8, 16, 17 | Changes made with the human before round 9, not rulings: on-budget transactions may be uncategorized (section 16); OFX import with matching (section 17), and 16 MiB bodies for its endpoints; targets renumbered to section 18 and schema version 3. |
+| This file's commit | 3.11, 9.3, 12.4, 12.5 | Dispute upheld, no spec change: five tests weren't updated for section 16. Three still expect a `null` category on an on-budget transaction to return 400, and the edited-plan model (`tests/credit_edited_model.rs`) skips lines with no category, where 16.2 makes them lines of Uncategorized, refunds on cards included. (Implementer dispute, round 9.) |
 
 ## Token usage
 
