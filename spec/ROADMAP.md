@@ -99,6 +99,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 3.11, 9.3, 12.4, 12.5 | Dispute upheld, no spec change: five tests weren't updated for section 16. Three still expect a `null` category on an on-budget transaction to return 400, and the edited-plan model (`tests/credit_edited_model.rs`) skips lines with no category, where 16.2 makes them lines of Uncategorized, refunds on cards included. (Implementer dispute, round 9.) |
 | This file's commit | 17.3, 17.5, 17.9 | A comment or processing instruction inside a value is skipped and the value carries on (`<NAME>AB<!-- x -->CD` is `ABCD`); of a repeated element, the first that isn't absent counts; `5.` is an amount; `duplicates` is in file order, whichever check found each. (Tester questions, round 10.) |
 | This file's commit | 17.9 | A bank transaction whose import id an earlier one in the same import has is a duplicate by the first check, even if that earlier one was itself skipped by the second check; its `transaction_id` is the account's transaction with that id once the import is done, or `null`. (Implementer question, round 10.) |
+| This file's commit | 17.9 | Only earlier bank transactions going into the same account count: `FITID`s are unique per account, so a statement for another account in the same import never makes one a duplicate. (Implementer question, round 10.) |
 
 ## Token usage
 
