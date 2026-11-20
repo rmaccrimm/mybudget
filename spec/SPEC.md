@@ -744,10 +744,10 @@ Both encodings are decoded as the WHATWG Encoding Standard says: in UTF-8, a byt
 
 17.3 After the headers, the file is a tree of elements, read the same way in 1.x and 2.x.
 
-- A start tag is `<NAME>` and an end tag `</NAME>`. Element names match ignoring ASCII case. Comments (`<!-- ... -->`) and processing instructions (`<? ... ?>`) are skipped wherever they are. What the server does with other markup, such as attributes or CDATA sections, isn't specified.
+- A start tag is `<NAME>` and an end tag `</NAME>`. Element names match ignoring ASCII case. Comments (`<!-- ... -->`) and processing instructions (`<? ... ?>`) are skipped wherever they are, even inside a value, which carries on after them: `<NAME>AB<!-- x -->CD` holds `ABCD`. What the server does with other markup, such as attributes or CDATA sections, isn't specified.
 - An element ends at its end tag, and holds everything between. An element with no end tag of its own before its parent's ends holds only the text up to the next `<`, which may be empty, as OFX 1.x writes `<TRNAMT>-64.99` with no `</TRNAMT>`. An end tag that closes no open element returns 400.
 - A value is the text an element holds directly. In it, `&lt;`, `&gt;`, `&amp;`, `&quot;`, `&apos;`, `&nbsp;`, and numeric references such as `&#38;` and `&#x26;`, become the characters they name; any other `&` stays as it is, so `AT&T` reads as `AT&T`. Then white space (Unicode `White_Space`) is trimmed from both ends. A value left empty counts as absent.
-- Elements that 17.4 doesn't name are ignored, with everything inside them. When an element 17.4 names appears more than once where it expects one, the first counts.
+- Elements that 17.4 doesn't name are ignored, with everything inside them. When an element 17.4 names appears more than once where it expects one, the first that isn't absent counts.
 
 17.4 The file's statements are its `STMTRS` elements (bank statements) and `CCSTMTRS` elements (credit card statements), wherever they are, in the order they appear. A file with none returns 400. In each statement, these are read, and the rest ignored:
 
@@ -758,7 +758,7 @@ Both encodings are decoded as the WHATWG Encoding Standard says: in UTF-8, a byt
 
 Each `STMTTRN` holds `TRNTYPE` (optional), `DTPOSTED` (required), `TRNAMT` (required), `FITID` (optional), `NAME` (optional; when it is absent, the `NAME` inside a `PAYEE` element, if there is one) and `MEMO` (optional). A required element that's absent, or a date or amount that isn't as 17.5 says, returns 400.
 
-17.5 A date value starts with eight digits, `YYYYMMDD`, naming a date in 3.8's range; anything after them, such as a time or `[-5:EST]`, is ignored, so the date is the one written, whatever its time zone. An amount value is an optional `+` or `-` followed by digits, with at most one `.` or `,` among them and at least one digit in all; `-64.99`, `+1800`, `12,5` and `.5` are amounts, and `1,234.56` isn't. It becomes milliunits (3.7), rounded half away from zero beyond three decimal places, so `-64.99` is `-64990`. An amount outside 3.7's range returns 400.
+17.5 A date value starts with eight digits, `YYYYMMDD`, naming a date in 3.8's range; anything after them, such as a time or `[-5:EST]`, is ignored, so the date is the one written, whatever its time zone. An amount value is an optional `+` or `-` followed by digits, with at most one `.` or `,` among them and at least one digit in all; `-64.99`, `+1800`, `12,5`, `.5` and `5.` are amounts, and `1,234.56` isn't. It becomes milliunits (3.7), rounded half away from zero beyond three decimal places, so `-64.99` is `-64990`. An amount outside 3.7's range returns 400.
 
 17.6 The preview returns `200` with `statements`, one object per statement in file order:
 
@@ -866,7 +866,7 @@ Checking's `balance` is now 4115010, the statement's `ledger_balance`. Importing
 - its import id is one the account has had, including from earlier in the same import; or
 - unless its import id is in the statement's `not_duplicates`, the account holds a transaction that was imported or matched before this import began (its `import` isn't `null`), with the same amount and a date no more than 2 days before or after the bank transaction's, which no other bank transaction in this import is a duplicate of. This catches a bank that changes a transaction's `FITID`, as some do when a pending transaction posts.
 
-In each statement, the first check runs over all its transactions before the second, which then takes them in order; when several transactions are possible, the one whose date is closest wins, and then the one created first. Only the first check's ids count as had, so a bank transaction the second check skips is checked again by the next import. `duplicates` lists each duplicate as its bank data (17.8), with `id` for its import id, and `transaction_id`: the transaction it duplicates. For the first check, that is the account's transaction whose `import` has that id, or `null` if none is left; for the second, the one it was paired with.
+In each statement, the first check runs over all its transactions before the second, which then takes them in order; when several transactions are possible, the one whose date is closest wins, and then the one created first. Only the first check's ids count as had, so a bank transaction the second check skips is checked again by the next import. `duplicates` lists each duplicate, in the order of the file whichever check found it, as its bank data (17.8), with `id` for its import id, and `transaction_id`: the transaction it duplicates. For the first check, that is the account's transaction whose `import` has that id, or `null` if none is left; for the second, the one it was paired with.
 
 ```
 {"id": "202610050001", "date": "2026-10-05", "amount": -120000,
