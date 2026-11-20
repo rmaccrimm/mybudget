@@ -749,7 +749,7 @@ Both encodings are decoded as the WHATWG Encoding Standard says: in UTF-8, a byt
 - A value is the text an element holds directly. In it, `&lt;`, `&gt;`, `&amp;`, `&quot;`, `&apos;`, `&nbsp;`, and numeric references such as `&#38;` and `&#x26;`, become the characters they name; any other `&` stays as it is, so `AT&T` reads as `AT&T`. Then white space (Unicode `White_Space`) is trimmed from both ends. A value left empty counts as absent.
 - Elements that 17.4 doesn't name are ignored, with everything inside them. When an element 17.4 names appears more than once where it expects one, the first that isn't absent counts.
 
-17.4 The file's statements are its `STMTRS` elements (bank statements) and `CCSTMTRS` elements (credit card statements), wherever they are, in the order they appear. A file with none returns 400. In each statement, these are read, and the rest ignored:
+17.4 The file's statements are its `STMTRS` elements (bank statements) and `CCSTMTRS` elements (credit card statements), wherever they are, in the order they appear. A file with none returns 400. In each statement, these are read, and the rest ignored. Apart from the statements themselves, each element below is read only directly inside the one this list puts it in: one nested anywhere else, as a `MEMO` inside a `NAME` is, is ignored.
 
 - `CURDEF`, the currency code: optional.
 - The account: in a bank statement, `BANKACCTFROM`, holding `BANKID` (optional), `ACCTID` (required) and `ACCTTYPE` (optional); in a credit card statement, `CCACCTFROM`, holding `ACCTID` (required).
