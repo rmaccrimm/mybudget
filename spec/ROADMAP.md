@@ -101,6 +101,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 17.9 | A bank transaction whose import id an earlier one in the same import has is a duplicate by the first check, even if that earlier one was itself skipped by the second check; its `transaction_id` is the account's transaction with that id once the import is done, or `null`. (Implementer question, round 10.) |
 | This file's commit | 17.9 | Only earlier bank transactions going into the same account count: `FITID`s are unique per account, so a statement for another account in the same import never makes one a duplicate. (Implementer question, round 10.) |
 | This file's commit | 17.4 | Each element 17.4 lists is read only directly inside the element that holds it; one nested elsewhere (`<NAME>SHOP<MEMO>X</MEMO></NAME>`) is ignored. Statements are still found anywhere. (Tester question, round 10.) |
+| This file's commit | 17.3 | An element 17.4 reads others from (`BANKACCTFROM`, `LEDGERBAL`, `PAYEE`) is absent when it holds no elements, whatever text it holds. (Implementer question, round 10.) |
 
 ## Token usage
 
