@@ -31,6 +31,11 @@ This is for the agent that resumes the work. The goal is a server that replicate
 3. From the superproject root, start the round in the background with the Mac kept awake (round 1 lost a night to sleep):
    `MYBUDGET_ROUND=<n> caffeinate -i scripts/round.sh "<task>" > <log file> 2>&1`
    `MYBUDGET_ROUND` labels the token usage of every agent run in the round; use the same number for reruns.
+   Name the events file yourself, so you can watch it before it exists: add `MYBUDGET_EVENTS=$HOME/.cache/mybudget/events/round-<n>[letter].jsonl`, with a new name for each run. `round.sh` adds one line to it as each step finishes (tester, judge, implementer) and a `round_end` line when it exits, and copies each step's final message or judge summary into the folder beside it.
+   - Follow it with a Monitor running `scripts/watch-round.sh <events file>`, at its 30-minute limit, and re-arm it on each expiry: a cursor file beside the events file makes the new watcher carry on without repeating or skipping an event. It exits after `round_end`.
+   - The human wants a short chat update after every step: what finished, its outcome, tests or commit, time and cost, and what runs next. On judge failures, say whether they look like a server bug or a stale test.
+   - Send a desktop notification only when the round ends, or when it stops for the human (exit 1, exit 2, any other stop such as an agent leaving its lane, a usage limit, or a question or dispute that needs the human's ruling under step 5). Questions you settle yourself get a chat update only.
+   - `scripts/round-status.sh [events file]` summarises a round on demand: the steps so far, the step running now and for how long, and the cost so far.
 4. Read the exit status:
    - 0: the round is complete.
    - 1: the implementer was still failing after `MAX_FIXES` runs, or the working tree wasn't clean; the log says which. For failures, read `~/.cache/mybudget/judge/results/` and decide whether the spec is at fault.
