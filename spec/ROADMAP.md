@@ -98,6 +98,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | This file's commit | 3.13, 8.2, 9.3, 9.5, 10.2, 10.4, 11.6, 15.8, 16, 17 | Changes made with the human before round 9, not rulings: on-budget transactions may be uncategorized (section 16); OFX import with matching (section 17), and 16 MiB bodies for its endpoints; targets renumbered to section 18 and schema version 3. |
 | This file's commit | 3.11, 9.3, 12.4, 12.5 | Dispute upheld, no spec change: five tests weren't updated for section 16. Three still expect a `null` category on an on-budget transaction to return 400, and the edited-plan model (`tests/credit_edited_model.rs`) skips lines with no category, where 16.2 makes them lines of Uncategorized, refunds on cards included. (Implementer dispute, round 9.) |
 | This file's commit | 17.3, 17.5, 17.9 | A comment or processing instruction inside a value is skipped and the value carries on (`<NAME>AB<!-- x -->CD` is `ABCD`); of a repeated element, the first that isn't absent counts; `5.` is an amount; `duplicates` is in file order, whichever check found each. (Tester questions, round 10.) |
+| This file's commit | 17.9 | A bank transaction whose import id an earlier one in the same import has is a duplicate by the first check, even if that earlier one was itself skipped by the second check; its `transaction_id` is the account's transaction with that id once the import is done, or `null`. (Implementer question, round 10.) |
 
 ## Token usage
 
