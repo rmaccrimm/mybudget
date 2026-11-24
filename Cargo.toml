@@ -1,7 +1,7 @@
+# Only the repo tooling (xtask) lives in this workspace. server/ and testsuite/ are
+# submodules with their own Cargo.lock, built by lanes that can't write here, so they
+# stay standalone packages.
 [workspace]
 resolver = "3"
-members = [
-    "server",
-    "testsuite",
-    "xtask"
-]
+members = ["xtask"]
+exclude = ["server", "testsuite"]
