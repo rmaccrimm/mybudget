@@ -1,10 +1,7 @@
 {
-  "effortLevel": "medium",
+  "effortLevel": "high",
   "permissions": {
-    "allow": [
-      "Read(/@ROOT@/**)",
-      "Edit(/@ROOT@/server/**)"
-    ],
+    "allow": ["Read(/@ROOT@/**)", "Edit(/@ROOT@/server/**)"],
     "deny": [
       "Edit(/@ROOT@/server/.git)",
       "Read(/@ROOT@/testsuite/**)",
@@ -20,7 +17,10 @@
     "allowUnsandboxedCommands": false,
     "autoAllowBashIfSandboxed": true,
     "filesystem": {
-      "allowWrite": ["@CACHE@/implementer/target", "@CACHE@/implementer/cargo-home"]
+      "allowWrite": [
+        "@CACHE@/implementer/target",
+        "@CACHE@/implementer/cargo-home"
+      ]
     },
     "network": {
       "allowedDomains": ["crates.io", "index.crates.io", "static.crates.io"],
