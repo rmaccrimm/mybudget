@@ -13,8 +13,10 @@
 #   0  every test passes
 #   1  the server fails (build, startup or tests); summary.txt is the implementer's feedback
 #   2  the test suite or the harness is broken, and a human needs to look
-# Results in $MYBUDGET_CACHE/judge/results: summary.txt (failures by clause, safe for
-# the implementer) and tests.log (every test's result, with output for failures).
+# Results in $MYBUDGET_CACHE/judge/results: summary.txt (failures by clause, with the
+# failing tests' names, safe for the implementer) and tests.log (every test's result,
+# with output for failures). The implementer sees names so it can dispute a single test
+# as out of scope; it still never sees a test's code, inputs or output.
 #
 # -v also shows, on stderr, cargo's output as it runs and each test's result as it
 # finishes, with the output of failures. It's for when you run the judge yourself. Don't
@@ -314,13 +316,13 @@ wait
 
 # Collect the results in the listed order, so tests.log reads the same on every run.
 : >"$RES/tests.log"
-: >"$J/run/tests/results"   # "<clause>\t<pass|fail>" per test
+: >"$J/run/tests/results"   # "<clause>\t<pass|fail>\t<test name>" per test
 i=0
 while IFS=$'\t' read -r bin name; do
   i=$(( i + 1 ))
   result=pass
   [[ "$(cat "$OUT/run/$i.rc" 2>/dev/null)" == 0 ]] || result=fail
-  printf '%s\t%s\n' "$(clause_of "$name")" "$result" >>"$J/run/tests/results"
+  printf '%s\t%s\t%s\n' "$(clause_of "$name")" "$result" "$name" >>"$J/run/tests/results"
   printf '== %s %s\n' "$result" "$name" >>"$RES/tests.log"
   [[ $result == pass ]] || { cat "$OUT/run/$i.out"; echo; } >>"$RES/tests.log"
 done <"$J/run/tests/names"
@@ -329,11 +331,13 @@ read -r passed failed < <(awk -F'\t' '{ if ($2 == "pass") p++; else f++ }
   END { print p + 0, f + 0 }' "$J/run/tests/results")
 summary=("server build: ok" "startup: ok" "tests: $passed passed, $failed failed")
 if (( failed )); then
+  # Each failing clause, then its failing tests' names, indented further. Lines are
+  # keyed by clause, then 0 for the clause line or 1 for a test, then sorted.
   summary+=("failing clauses:")
   mapfile -t -O "${#summary[@]}" summary < <(awk -F'\t' '
-      { n[$1]++; if ($2 == "fail") f[$1]++ }
-      END { for (c in f) printf "%s\t  SPEC %s: %d of %d tests fail\n", c, c, f[c], n[c] }' \
-    "$J/run/tests/results" | sort -V | cut -f2-)
+      { n[$1]++; if ($2 == "fail") { f[$1]++; printf "%s\t1\t    %s\n", $1, $3 } }
+      END { for (c in f) printf "%s\t0\t  SPEC %s: %d of %d tests fail\n", c, c, f[c], n[c] }' \
+    "$J/run/tests/results" | sort -t $'\t' -k1,1V -k2,2n -k3,3 | cut -f3-)
   finish 1 "${summary[@]}"
 fi
 finish 0 "${summary[@]}"

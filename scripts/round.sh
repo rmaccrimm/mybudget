@@ -24,8 +24,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CACHE="${MYBUDGET_CACHE:-$HOME/.cache/mybudget}"
 RES="$CACHE/judge/results"
-MAX_FIXES="${MAX_FIXES:-5}"
-MAX_ATTACKS="${MAX_ATTACKS:-2}"
+MAX_FIXES="${MAX_FIXES:-2}"
+MAX_ATTACKS="${MAX_ATTACKS:-1}"
 task="${1:?usage: $0 \"<task>\"}"
 # Label every agent run's usage with the round, so reruns after a ruling add up together.
 export MYBUDGET_ROUND="${MYBUDGET_ROUND:-$task}"
@@ -154,11 +154,15 @@ for (( attack = 0; ; attack++ )); do
       exit 1
     fi
     fixes=$(( fixes + 1 ))
-    # summary.txt is written to be safe for the implementer: failures by clause, no tests.
+    # summary.txt is written to be safe for the implementer: failures by clause and the
+    # failing tests' names, never their code or output. The last run is told to dispute
+    # what it can't pass rather than guess again.
+    last=""
+    (( fixes < MAX_FIXES )) || last=$'\n\nThis is your last run before the round stops for a human. For any failing test you can\'t make pass, end with a DISPUTE: line for it (see your rules) instead of guessing again.'
     lane implementer "fix $fixes" "Task: $task
 
 Judge results for the committed code:
-$(cat "$RES/summary.txt")"
+$(cat "$RES/summary.txt")$last"
   done
   if (( attack > 0 && fixes == 0 )); then
     reason="the tester's last attack found nothing new. Round complete."

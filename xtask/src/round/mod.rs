@@ -42,11 +42,11 @@ pub struct RoundArgs {
     pub start: Start,
 
     /// Implementer runs allowed before each green judge run.
-    #[arg(long, env = "MAX_FIXES", default_value_t = 5)]
+    #[arg(long, env = "MAX_FIXES", default_value_t = 2)]
     pub max_fixes: u32,
 
     /// Tester attacks after the first green judge run.
-    #[arg(long, env = "MAX_ATTACKS", default_value_t = 2)]
+    #[arg(long, env = "MAX_ATTACKS", default_value_t = 1)]
     pub max_attacks: u32,
 
     /// Labels the agents' token usage, so reruns of a round add up together. Defaults

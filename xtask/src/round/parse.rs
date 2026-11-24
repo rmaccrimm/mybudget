@@ -245,7 +245,8 @@ mod tests {
 
     #[test]
     fn judge_summary_of_failing_clauses() {
-        let summary = "server build: ok\nstartup: ok\ntests: 1034 passed, 116 failed\nfailing clauses:\n  SPEC 3.4: 1 of 42 tests fail\n  SPEC 17.1: 6 of 6 tests fail\n";
+        // Each clause is followed by its failing tests' names, which aren't clauses.
+        let summary = "server build: ok\nstartup: ok\ntests: 1034 passed, 116 failed\nfailing clauses:\n  SPEC 3.4: 1 of 42 tests fail\n    spec_3_4_a\n  SPEC 17.1: 6 of 6 tests fail\n    spec_17_1_b\n    spec_17_1_c\n";
         let parsed = JudgeSummary::parse(summary);
         assert_eq!((parsed.passed, parsed.failed), (Some(1034), Some(116)));
         assert_eq!(

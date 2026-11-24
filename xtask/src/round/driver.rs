@@ -13,6 +13,12 @@ use crate::paths::Role;
 /// The exit status for a failure in the round runner itself, such as git failing.
 pub const INTERNAL_ERROR: i32 = 70;
 
+/// Added to the implementer's last fix prompt before the round stops for a human, so a
+/// test it can't pass ends in a dispute rather than another guess.
+pub const LAST_FIX: &str = "\n\nThis is your last run before the round stops for a human. \
+    For any failing test you can't make pass, end with a DISPUTE: line for it (see your \
+    rules) instead of guessing again.";
+
 pub struct Config {
     pub task: String,
     pub start: Start,
@@ -117,11 +123,14 @@ impl<'a, S: Steps> Round<'a, S> {
                 }
                 fixes += 1;
                 // summary.txt is written to be safe for the implementer: failures by
-                // clause, no tests.
-                let prompt = format!(
+                // clause and the failing tests' names, never their code or output.
+                let mut prompt = format!(
                     "Task: {task}\n\nJudge results for the committed code:\n{}",
                     self.summary
                 );
+                if fixes == self.cfg.max_fixes {
+                    prompt.push_str(LAST_FIX);
+                }
                 self.lane(Role::Implementer, &format!("fix {fixes}"), &prompt)?;
             }
             if attack > 0 && fixes == 0 {
@@ -509,6 +518,9 @@ mod tests {
             who(&out),
             ["judge", "implementer", "judge", "implementer", "judge"]
         );
+        // Only the last fix run is told to dispute what it can't pass.
+        assert!(!out.calls[1].1.contains(LAST_FIX), "{}", out.calls[1].1);
+        assert!(out.calls[3].1.ends_with(LAST_FIX), "{}", out.calls[3].1);
     }
 
     #[test]

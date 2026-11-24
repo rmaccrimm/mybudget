@@ -18,7 +18,7 @@
 `scripts/lane.sh <role> "<prompt>"` runs `claude -p` with the role's prompt and settings:
 
 1. **Lane = working directory.** The session starts in `testsuite/` (tester) or `server/` (implementer). Claude Code's sandbox only lets Bash, and everything Bash starts, write inside the working directory, plus the role's own cargo cache in `~/.cache/mybudget/<role>/`. `allowUnsandboxedCommands: false` removes the escape hatch, and `dontAsk` mode denies anything not explicitly allowed.
-2. **The implementer can't see any tests.** It can't read `testsuite/`, the test suite's git objects, the tester's cache or Claude transcripts. After each of its runs, the judge tells it whether the server builds, whether it starts up (SPEC 1), and how many tests fail for each spec clause. It never sees test names, inputs or failure output.
+2. **The implementer can't see any tests.** It can't read `testsuite/`, the test suite's git objects, the tester's cache or Claude transcripts. After each of its runs, the judge tells it whether the server builds, whether it starts up (SPEC 1), how many tests fail for each spec clause, and the failing tests' names. It never sees a test's code, inputs or failure output. The names let it dispute a single test as asking for more than the spec says.
 3. **Commits are checked.** Agents can't commit; their git directories are outside their lane. After each run `lane.sh` checks that nothing outside the lane changed, then commits the lane itself.
 4. **The judge.** `scripts/judge.sh` exports the committed code, vendors dependencies, then builds and runs each step under `sandbox-exec`. Each step can write only to its own scratch folder, so build scripts, the server and the tests can't change sources, other steps' binaries or the results. The steps that run only server code can't read the tests either, so their output is safe to pass to the implementer. Each test runs on its own, in a fresh scratch folder, and its exit status decides pass or fail.
 
@@ -32,12 +32,12 @@ The scripts depend on two rules, also stated at the top of `spec/SPEC.md`:
 ## Running a round
 
 ```sh
-scripts/round.sh "SPEC section 2 (health)"
+cargo xtask round "SPEC section 2 (health)"
 ```
 
-The tester writes tests, then the implementer runs until the judge is green (up to `MAX_FIXES` runs, default 5). Then the tester tries to break the implementation. This repeats until an attack finds nothing new or `MAX_ATTACKS` (default 2) is reached.
+The tester writes tests, then the implementer runs until the judge is green (up to `MAX_FIXES` runs, default 2). Then the tester tries to break the implementation, from the spec alone. This repeats until an attack finds nothing new or `MAX_ATTACKS` (default 1) is reached. `scripts/round.sh` is the bash original, kept as a fallback.
 
-The round stops for you when an agent ends its final message with a `DISPUTE:` or `QUESTION:` line. A dispute names a clause. To review it, find that clause's tests (`grep -rn spec_3_2_ testsuite/tests`) and their output in `~/.cache/mybudget/judge/results/tests.log`. Then fix the tests or clarify the spec, commit, and rerun the round with a task that says what changed.
+The round stops for you when an agent ends its final message with a `DISPUTE:` or `QUESTION:` line. The implementer disputes a test or clause as `wrong`, `not-in-spec` or `not-worth-it`; its last fix run is told to dispute whatever it can't pass rather than guess. To review a dispute, find the tests (`grep -rn spec_3_2_ testsuite/tests`) and their output in `~/.cache/mybudget/judge/results/tests.log`. Then delete tests that ask too much or that the spec's Scope section leaves out, or clarify the spec, commit, and resume the round at the step the ruling affects (`spec/ROADMAP.md`, step 5).
 
 The working tree must be clean before each agent run. Each agent's last message is saved in `~/.cache/mybudget/<role>/last-output.md`.
 

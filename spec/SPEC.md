@@ -1,11 +1,21 @@
 # MyBudget server spec
 
-This is the contract between the tester and the implementer. When an agent raises a `QUESTION:` or `DISPUTE:`, settle it by changing this file.
+This is the contract between the tester and the implementer. When an agent raises a `QUESTION:` or `DISPUTE:`, settle it by changing this file, or, when a dispute shows a test asks for more than this file says, by deleting that test.
 
 The scripts depend on two format rules:
 
 - A requirement is a line that starts with its number, such as `2.1 `. Tests are named after these numbers (`spec_2_1_...`), and the judge reports failures to the implementer by number.
 - An example under a requirement is part of it: tests may check anything the example shows. The implementer never sees the tests, so examples are how it learns exact formats. Give every endpoint at least one.
+
+## Scope
+
+The server runs on one person's computer, started by the macOS app or, later, a web client's host, and serves one household's budgets. Requests come from that client, and imported files are statements that real banks export. The numbered clauses say what the server must do. This section says what tests don't hold it to, so work goes where a user would notice. It isn't a clause, so no test is named after it, but disputes and rulings cite it.
+
+- **Realistic sizes.** No test needs more than a few thousand transactions in a plan, or a few hundred in one import, unless a clause names a larger number.
+- **Inputs no client or bank would send.** Within 3.13's limits, input built to stress the server, such as elements nested thousands deep, hundreds of thousands of elements, or a field megabytes long, may be read correctly or refused with an error. Tests don't check which, how long it takes, or that the server keeps running afterwards.
+- **Speed.** Tests don't measure how fast the server answers, except where a clause states a time (1.4). Ordinary requests on a plan of realistic size answering within a few seconds is enough.
+- **The environment.** The data directory, its files and the server's process are the server's own. Tests don't change permissions, fill the disk, swap files under a running server or kill it mid-request, except to check what a clause says happens then (1.4, section 15).
+- **Races.** Concurrent requests behave as 3.11 says. Beyond that, tests don't hunt for timing windows by repetition or CPU load, except where a clause is about timing (1.4).
 
 ## 1. Process
 
