@@ -912,4 +912,91 @@ POST /plans/PLAN_ID/transactions/SHOP_TXN_ID/unmatch
 
 17.15 Schema version 2 (15.8) holds every transaction's `import`, the import ids each account has had (17.9) and what 17.13 remembers. Migrating to version 1 drops all of them: transactions keep every other field and get `"import": null`, and a later import treats every bank transaction as new.
 
-<!-- Next: section 18 (targets). The plan and draft text are in spec/ROADMAP.md. -->
+## 18. Targets
+
+18.1 Today is the date in the environment variable `MYBUDGET_TODAY` (`YYYY-MM-DD`) when it is set and not empty, as for 15.1's `MYBUDGET_DATA`, and otherwise the current date in the server's local time zone. If it is set to anything that isn't a date (3.8), the server writes a message to stderr and exits with a non-zero status, without printing 1.3's line. Transactions still count as soon as they're entered, whatever their date.
+
+18.2 Each change to a category's `assigned` for a month is kept as an assignment: the amount it adds, positive or negative, and the date it was made, which is today (18.1). A month's `assigned` (11.2) is the sum of its assignments, so it is 0 until one is made. 11.2's `PATCH` makes one assignment, of the new `assigned` minus the old; a `PATCH` that leaves `assigned` as it was makes none. `GET /plans/{plan_id}/months/{month}/categories/{category_id}/assignments` lists a category's assignments for that month, in the order they were made, as objects with `date` and `amount`. It works for user and payment categories, and an empty month gives `[]`. `ready_to_assign` isn't a category here: that path returns 404, as in 11.2.
+
+```
+(11.8's plan, made on a server started with MYBUDGET_TODAY=2026-10-01, which is then restarted
+ with MYBUDGET_TODAY=2026-11-20 and the same MYBUDGET_DATA)
+PATCH /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID
+{"assigned": 350000}
+→ 200
+{"category_id": "GROCERIES_ID", "assigned": 350000, "activity": -120000, "available": 230000,
+ "cash_overspending": 0, "credit_overspending": 0, "target": null, "due": null, "underfunded": null}
+
+GET /plans/PLAN_ID/months/2026-10/categories/GROCERIES_ID/assignments
+→ 200
+[{"date": "2026-10-01", "amount": 400000}, {"date": "2026-11-20", "amount": -50000}]
+```
+
+The examples in 18.3 to 18.6 each start again from 11.8's plan, on a server started with `MYBUDGET_TODAY=2026-11-05`.
+
+18.3 Every category object (7.1 to 7.6) has a `target`: the category's current target (18.4), or `null`. `PATCH /plans/{plan_id}/categories/{category_id}` with `target` sets a new target, and with `null` removes it (18.4). A `PATCH` on a payment category that includes `target`, even `null`, returns 400, so a payment category's `target` is always `null`. A target in a request is an object with these fields:
+
+- `type`, required: `"set_aside"`, to assign `amount` every month, or `"refill"`, to fill the category up to `amount` every month (18.5).
+- `amount`, required: an amount (3.7) greater than 0.
+- `by_date`, optional and nullable: the day of the month the target is due, a JSON integer from 1 to 31 written without a fraction or exponent. `null`, the default, means the month's last day.
+- `start_month`, optional and not nullable: the first month the target applies to (3.8). It defaults to today's month, and a month before today's returns 400.
+
+A `target` that isn't an object or `null`, or any of these fields with a value this list doesn't allow, returns 400; other fields in a target are ignored (3.6). A target is returned with all four fields.
+
+```
+PATCH /plans/PLAN_ID/categories/GROCERIES_ID
+{"target": {"type": "refill", "amount": 400000, "by_date": 15}}
+→ 200
+{"id": "GROCERIES_ID", "group_id": "EVERYDAY_ID", "name": "Groceries", "hidden": false, "note": null,
+ "payment_account_id": null,
+ "target": {"type": "refill", "amount": 400000, "by_date": 15, "start_month": "2026-11"}}
+```
+
+18.4 A category may have many targets over time, but no two apply to the same month. Each target applies from its `start_month` until the month before the next one's `start_month`, or without end if no other target follows it; the category's current target is the one without end, if there is one. Setting a target that starts in month S removes every target of the category whose `start_month` is S or later, ends the one that applied in S at the month before S, and adds the new target without end. Removing the target with `null` does the same for S equal to today's month, without adding one, so today's month and every later month have no target. If the current target already has the new target's `type`, `amount` and `by_date`, and its `start_month` is S or earlier, setting it changes nothing: sending 18.3's `PATCH` again leaves its `start_month` at `2026-11`.
+
+After 18.3's `PATCH`, this keeps the refill target for November and applies a new one from December:
+
+```
+PATCH /plans/PLAN_ID/categories/GROCERIES_ID
+{"target": {"type": "set_aside", "amount": 300000, "start_month": "2026-12"}}
+→ 200
+{"id": "GROCERIES_ID", "group_id": "EVERYDAY_ID", "name": "Groceries", "hidden": false, "note": null,
+ "payment_account_id": null,
+ "target": {"type": "set_aside", "amount": 300000, "by_date": null, "start_month": "2026-12"}}
+
+PATCH /plans/PLAN_ID/categories/GROCERIES_ID
+{"target": {"type": "set_aside", "amount": 300000, "start_month": "2026-10"}}
+→ 400
+{"error": "start_month is before this month"}
+```
+
+Sending `{"target": null}` after that removes both targets, since both start in November or later.
+
+18.5 Each month entry (11.3) gets three fields, all `null` for a month that no target applies to. Otherwise:
+
+- `target`: the target that applies that month, as 18.3 returns it.
+- `due`: the date in that month on the target's `by_date`, or the month's last day when `by_date` is `null` or past the end of the month.
+- `underfunded`: how much more to assign that month. With carryover as in 11.4, a `set_aside` target's is max(0, `amount` - `assigned`), so money carried in or spent never counts. A `refill` target's is max(0, `amount` - carryover - `assigned`), so money carried in counts but money spent that month doesn't.
+
+The month's `uncategorized` entry (16.3) has all three `null`.
+
+After 18.3's `PATCH`, November's entry asks for 120000: 400000, less 280000 carried in and 0 assigned. October's entry has `null` for all three, because the target starts in November.
+
+```
+GET /plans/PLAN_ID/months/2026-11/categories/GROCERIES_ID
+→ 200
+{"category_id": "GROCERIES_ID", "assigned": 0, "activity": 0, "available": 280000,
+ "cash_overspending": 0, "credit_overspending": 0,
+ "target": {"type": "refill", "amount": 400000, "by_date": 15, "start_month": "2026-11"},
+ "due": "2026-11-15", "underfunded": 120000}
+```
+
+After 18.4's first `PATCH` as well, December's entry has the set-aside target, `"due": "2026-12-31"` and `"underfunded": 300000`: the 280000 carried in doesn't count. A `by_date` of 31 gives `"due": "2027-02-28"` in February 2027.
+
+18.6 Each month (11.6) gets `underfunded`: the sum of its categories' `underfunded`, counting `null` as 0. After 18.3's `PATCH` and a set-aside target of 1200000 on Rent with a `by_date` of 1, November's `underfunded` is 120000: 120000 for Groceries, 0 for Rent (November assigns it 1200000, and its `due` is `2026-11-01`) and `null` for Dining.
+
+18.7 Deleting a category (13.1) deletes its targets. With `reassign_to`, its assignments move to that category with their dates and amounts unchanged, which is how 13.3 adds its `assigned` to that category's, and every list of assignments stays in the order they were made. Without `reassign_to`, its assignments are dropped. The other category's targets don't change.
+
+18.8 Schema version 3 (15.8) holds assignments and targets. Upgrading a file from version 2 or older turns each month's `assigned` for a category, when that isn't 0, into one assignment for the whole amount, dated the first day of the month. Migrating to version 2 or below drops every target and keeps only each month's total `assigned`, so going back up to version 3 gives one assignment per month, as upgrading does.
+
+<!-- Next: no section is planned yet. Candidates are under "Left out on purpose" in spec/ROADMAP.md. -->
