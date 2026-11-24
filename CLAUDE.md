@@ -18,6 +18,7 @@ Each test in `testsuite/tests/` is named after the clause it checks: `spec_3_2_.
 - `scripts/test.sh`: build the server and run the test suite (not available to the implementer).
 - `scripts/judge.sh`: the authoritative run.
 - `scripts/round.sh "<task>"`: tester → implementer → tester attack, repeated until green.
+- `cargo xtask round "<task>"`: the Rust port of `round.sh`, with the same environment variables (or `--start`, `--max-fixes`, `--max-attacks`, `--round`, `--events`), exit statuses and events. Workflow scripts are being ported to `xtask/` one at a time; the root Cargo workspace holds only `xtask`, so `server/` and `testsuite/` keep their own lockfiles.
 
 ## Resuming the work
 
