@@ -31,7 +31,8 @@ This is for the agent that resumes the work. The goal is a server that replicate
   - Rulings resume at the step they affect, and the session running the rounds deletes tests a ruling throws out (step 5).
 
   Older tests may break the Scope section, for example `testsuite/tests/imports_limits.rs`. They stay until a dispute or the human removes them.
-- **Round 11 (section 18, targets) is next**, with the task in the rounds table below.
+- **Round 11 (section 18) is complete.** The judge passed 1254 of 1254 tests at the superproject commit that records this (testsuite `155c88c`, server `ba3eeb3`), over three runs of `cargo xtask round`, its first with agents (events in `~/.cache/mybudget/events/round-11*.jsonl`). Section 18 was pasted with two clarifications: an empty `MYBUDGET_TODAY` counts as unset (18.1), and unknown fields inside a target are ignored (18.3). The first run was cut off by a usage limit in the implementer's first fix; its unfinished work is in `~/.cache/mybudget/round-11-partial/`, and the round resumed from the judge. One implementer run then passed all but one test, which the implementer disputed as `wrong`: it expected setting the current target again with a later `start_month` to move the start, which 18.4 rules out. The dispute was upheld and the test deleted. The attack (odd `by_date` values, reassigned assignments after a restart, concurrent `assigned` PATCHes, version 1 files upgraded at startup) found nothing new. Version 3's migration is now fixed in `spec/migrations.sha256`. The round cost $15.73, under half of round 10, with the trimmed workflow.
+- **No round is planned next.** Every drafted section is in `SPEC.md`; candidates for new sections are under "Left out on purpose". Two 18.1 tests the tester itself thought disputable passed and stay: a `MYBUDGET_TODAY` that isn't valid Unicode, and the local-date tests that set `TZ`.
 
 ## How to run a round
 
@@ -139,6 +140,7 @@ Round 1's questions came from gaps like these. Fixing them before pasting saves 
 | speed-1 | 1 / 0 | 82 | 36,288 | 3,805,753 | 118,451 | 2.43 |
 | 9 | 3 / 2 | 348 | 171,906 | 16,456,837 | 658,360 | 12.00 |
 | 10 | 12 / 5 | 884 | 666,830 | 46,534,965 | 1,898,224 | 37.83 |
+| 11 | 2 / 3 | 344 | 239,812 | 23,031,862 | 791,012 | 15.73 |
 
 ## The rounds
 
