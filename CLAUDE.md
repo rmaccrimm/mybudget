@@ -2,6 +2,10 @@
 
 A macOS SwiftUI app (`app/`) backed by a Rust HTTP server (`server/`), so a web client can reuse the server later. `testsuite/` is a separate Rust crate that starts the server as a subprocess and tests it over HTTP. All three are git submodules.
 
+## Branches
+
+Work on `main`, in the superproject and in each submodule (`app/`, `server/`, `testsuite/`). Don't create feature branches; commit to `main`. Don't push without asking.
+
 ## Adversarial development
 
 Server work goes through two agents, each run by `scripts/lane.sh` in its own sandbox:
